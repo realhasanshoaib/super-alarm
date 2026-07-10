@@ -1,0 +1,73 @@
+---
+v: 1
+status: ready_warn
+intent: "Prepare and publish the rebuilt native Super Alarm apps: iOS to TestFlight first, Android to Google Play open testing."
+stores:
+  - ios
+  - android
+release:
+  version: 1.0.0
+  build: 7
+  notes:
+    en-US: "Native rebuild: platform-native Android and iOS alarm flows with QR dismissal, diagnostics, and refreshed store assets."
+ios:
+  bundle: com.superalarm.app
+  target: tf_internal
+  release: manual
+  archive: build/ios/SuperAlarm.xcarchive
+  ipa: build/ios/export/SuperAlarm.ipa
+  app_id: "6770966337"
+  asc: op://Mobile App Releases/Apple App Store Connect API Key/credential
+  current_store_state: WAITING_FOR_REVIEW
+  current_uploaded_max_build: 6
+  next_build: 7
+  signing: local Apple Distribution, manual profile "Super Alarm App Store"
+  requires_entitlements:
+    critical_alerts: true
+  current_signed_ipa_sha256: aae2d58208ffbcce04d33a9d5cac35991af73fd2d781cc23e6262c9d766d4c3a
+  current_signed_ipa_build: 6
+  current_signed_ipa_has_critical_alerts_entitlement: false
+  next_action: "Get Apple Critical Alerts entitlement approved for com.superalarm.app, regenerate the App Store/TestFlight provisioning profile so the signed app includes com.apple.developer.usernotifications.critical-alerts, then archive/export/upload build 7 to TestFlight."
+android:
+  package: com.superalarm.app
+  track: open
+  api_track: beta
+  status: completed
+  uploaded_tracks:
+    - internal
+    - beta
+  testing_opt_in_url: https://play.google.com/apps/testing/com.superalarm.app
+  store_url: https://play.google.com/store/apps/details?id=com.superalarm.app
+  aab: android/app/build/outputs/bundle/release/app-release.aab
+  aab_sha256: 5f53e4238457e6f5b6024b63e5f530d2fa9fbbb35ce9520c18e5120fb701bf14
+  version_code: 5
+  version_name: 1.0.0
+  play: env:GOOGLE_APPLICATION_CREDENTIALS
+  data_safety: ref:docs/play-data-safety.csv
+  result: "Uploaded and committed versionCode 5 to internal testing and open testing (Publisher API beta track)."
+  next_action: "Share testing opt-in URL; monitor Play review/availability."
+review:
+  demo: null
+  apple_notes: "No account required. Create a QR spot, allow notifications and camera, enable the alarm, then use Test Alarm. On iOS, Critical Alerts are requested only when the signed entitlement is present; otherwise the app uses standard local notifications and opens the QR dismissal flow when the notification is tapped."
+  google_instructions: "No account required. Create a QR spot, grant alarm/notification/full-screen/camera permissions when prompted, then use Test Alarm to verify the alarm and QR dismissal flow."
+  contact: hhushhas@gmail.com
+  phone: "+971501308829"
+urls:
+  privacy: https://super-alarm-legal.msbilal.workers.dev/privacy
+  support: https://super-alarm-legal.msbilal.workers.dev/support
+assets:
+  screenshots: store/screenshots
+  ios_screenshots: store/screenshots/ios/iphone-65
+  android_screenshots: store/screenshots/android/phone
+  feature: store/media/google-play/feature-graphic-1024x500.png
+controls:
+  action: submit
+  artifact: build
+  engine: api
+blockers:
+  - "Apple Critical Alerts cannot be enabled through the App Store Connect bundle capability API; Apple rejected CRITICAL_ALERTS as an unsupported CLI capability type. Request/approval must be completed through Apple special entitlement flow, then the provisioning profile must be regenerated."
+  - "The existing signed IPA is build 6 and App Store Connect validation says build 6 has already been used; the next TestFlight upload must be build 7 or higher. Source has been bumped to build 7, but a new signed IPA has not been exported yet."
+risks:
+  - "Native migration real-device QA is still needed for lock-screen/full-screen alarm behavior, camera QR scanning, notification permissions, haptics/vibration, and accessibility."
+  - "Android open testing maps to Android Publisher API track beta; do not upload to production for this native validation pass."
+  - "iOS uses scheduled local notifications, not Android-style full-screen exact alarms; Critical Alerts improve notification delivery but do not create an Android-style background ringing service."

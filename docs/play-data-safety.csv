@@ -1,0 +1,5 @@
+Data category,Collected,Shared,Ephemeral,Required,Purpose,Encrypted in transit,User can request deletion,Evidence
+App activity / diagnostics,Yes,No,No,Optional,Local app functionality and user-requested diagnostics export,Not transmitted,Yes by clearing app data or uninstalling,"App.tsx, lib/alarmCore.ts"
+User-provided QR labels and payloads,Yes,No,No,Optional,Local QR dismissal setup and optional support diagnostics export,Not transmitted,Yes by clearing app data or uninstalling,"lib/storage.ts, lib/alarmCore.ts"
+Photos or videos / camera frames,No,No,Yes,Required for QR dismissal,QR code scanning only; frames are not stored or uploaded,Not transmitted,Not stored,"screens/AlarmRingingScreen.tsx"
+Device or other IDs,No,No,No,No,None,Not transmitted,Not applicable,"No network/analytics SDK found"

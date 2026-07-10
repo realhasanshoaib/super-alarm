@@ -1,0 +1,77 @@
+---
+updated_at: '2026-05-21T10:18:52Z'
+app: super-alarm
+android:
+  package: com.superalarm.app
+  track: production
+  status: submitted_production
+  version_code: 2
+  aab: android/app/build/outputs/bundle/release/app-release.aab
+  edit_id: '00676096195384743009'
+  completed:
+  - release_aab_built
+  - version_code_2_uploaded
+  - en_us_listing_updated
+  - production_track_committed
+  blockers: []
+ios:
+  app_id: '6770966337'
+  bundle_id: com.superalarm.app
+  version_id: 10bb4adf-a074-4b71-87e7-e0de4bcce045
+  version: '1.0'
+  build_id: e9a2f4b7-b005-472b-a16e-0abcf6d07481
+  build_number: '5'
+  delivery_uuid: e9a2f4b7-b005-472b-a16e-0abcf6d07481
+  review_submission_id: f5ffb7a7-74f5-45a3-8da7-8e7a08939d66
+  submitted_date: '2026-05-21T10:17:52.181Z'
+  status: waiting_for_review
+  completed:
+  - ipa_uploaded_and_valid
+  - ipa_build_2_uploaded
+  - ipa_build_3_uploaded
+  - ipa_build_4_uploaded
+  - app_review_contact_phone_set
+  - app_availability_worldwide_created
+  - build_2_encryption_set_false
+  - build_3_attached
+  - build_3_encryption_set_false
+  - build_4_attached
+  - build_4_encryption_set_false
+  - build_4_validated
+  - ios_icon_matched_android_source
+  - ios_alarm_tone_added
+  - diagnostics_export_added
+  - safe_area_provider_added
+  - app_privacy_published_manually
+  - review_submission_item_added
+  - submitted_for_app_review
+  - resubmitted_build_4_for_app_review
+  - build_attached
+  - encryption_set_false
+  - metadata_set
+  - primary_category_utilities
+  - age_rating_no_content
+  - content_rights_no_third_party_content
+  - free_pricing_schedule
+  - iphone65_screenshot_uploaded
+  - ipad129_screenshot_uploaded
+  - ipa_build_5_uploaded
+  - build_5_valid
+  - build_5_encryption_set_false
+  - build_4_review_submission_canceled
+  - build_5_attached
+  - apple_listing_updated_from_docs
+  - build_5_submitted_for_app_review
+  blockers: []
+  ipa_sha256: 19ef2cbeacb440856b0baf5e55f520c3a18e7e8f085978b4a51f99e4ac2c84fd
+submit_run_20260521T100552Z:
+  started_at: '2026-05-21T10:05:52Z'
+  mode: submit
+  stores:
+  - ios
+  artifact: build
+  requested_build: 5
+  ended_at: '2026-05-21T10:18:52Z'
+  result: waiting_for_review
+  build_id: e9a2f4b7-b005-472b-a16e-0abcf6d07481
+  review_submission_id: f5ffb7a7-74f5-45a3-8da7-8e7a08939d66

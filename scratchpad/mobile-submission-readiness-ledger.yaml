@@ -1,0 +1,17 @@
+entries:
+  - date: 2026-05-20
+    app: super-alarm
+    platform: ios
+    status: ipa_exported
+    checks:
+      typecheck: pass
+      tests: pass
+      pod_install: pass
+      archive_compile: pass
+      archive_codesign: pass
+      ipa_export: pass
+    notes:
+      - Added iOS local notification alarm scheduling and review notes.
+      - Removed stale background audio and microphone plist usage.
+      - Bypassed login keychain issue by importing stored distribution.p12 into a dedicated build keychain.
+      - IPA exported at build/ios/export/SuperAlarm.ipa.
