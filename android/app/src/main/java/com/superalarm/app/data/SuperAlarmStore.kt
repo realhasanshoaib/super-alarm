@@ -1,8 +1,6 @@
 package com.superalarm.app.data
 
 import android.Manifest
-import android.app.admin.DevicePolicyManager
-import android.content.ComponentName
 import android.app.AlarmManager
 import android.app.NotificationManager
 import android.content.Context
@@ -20,7 +18,6 @@ import com.superalarm.app.alarm.AlarmScheduler
 import com.superalarm.app.alarm.AlarmStorage
 import com.superalarm.app.alarm.PendingAlarmLaunch
 import com.superalarm.app.alarm.StoredAlarmConfig
-import com.superalarm.app.admin.SuperAlarmDeviceAdminReceiver
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -177,7 +174,6 @@ class SuperAlarmStore(private val context: Context) {
       exactAlarmAllowed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) alarmManager.canScheduleExactAlarms() else true,
       fullscreenIntentAllowed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) notificationManager.canUseFullScreenIntent() else true,
       batteryOptimizationRelaxed = powerManager.isIgnoringBatteryOptimizations(context.packageName),
-      uninstallProtectionActive = isUninstallProtectionActive(),
     )
   }
 
@@ -193,21 +189,6 @@ class SuperAlarmStore(private val context: Context) {
 
   fun openBatterySettings() = openSettings(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
 
-  fun isUninstallProtectionActive(): Boolean {
-    val devicePolicyManager = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-    return devicePolicyManager.isAdminActive(deviceAdminComponent())
-  }
-
-  fun deviceAdminActivationIntent(): Intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
-    putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, deviceAdminComponent())
-    putExtra(
-      DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-      "Super Alarm can add one extra step before uninstalling, so sleepy-you has to deliberately disable protection first.",
-    )
-  }
-
-  private fun deviceAdminComponent(): ComponentName = ComponentName(context, SuperAlarmDeviceAdminReceiver::class.java)
-
   fun diagnosticsJson(): String = JSONObject().apply {
     put("appState", _state.value.toJson())
     put("capabilities", JSONObject().apply {
@@ -216,7 +197,6 @@ class SuperAlarmStore(private val context: Context) {
       put("exactAlarmAllowed", caps.exactAlarmAllowed)
       put("fullscreenIntentAllowed", caps.fullscreenIntentAllowed)
       put("batteryOptimizationRelaxed", caps.batteryOptimizationRelaxed)
-      put("uninstallProtectionActive", caps.uninstallProtectionActive)
       put("cameraGranted", cameraGranted())
       put("platform", "android")
     })

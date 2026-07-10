@@ -1,5 +1,3 @@
 <resources>
   <string name="app_name">Super Alarm</string>
-  <string name="device_admin_label">Super Alarm uninstall protection</string>
-  <string name="device_admin_description">Adds a deliberate deactivation step before Super Alarm can be uninstalled.</string>
 </resources>

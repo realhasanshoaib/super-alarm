@@ -54,7 +54,6 @@ data class ReliabilityChecklistState(
   val exactAlarmAllowed: Boolean = true,
   val fullscreenIntentAllowed: Boolean = true,
   val batteryOptimizationRelaxed: Boolean = false,
-  val uninstallProtectionActive: Boolean = false,
 )
 
 data class AppState(

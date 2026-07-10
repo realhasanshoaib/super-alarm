@@ -1,7 +1,7 @@
 ---
 v: 1
-status: ready_warn
-intent: "Prepare and publish the rebuilt native Super Alarm apps: iOS to TestFlight first, Android to Google Play open testing."
+status: blocked
+intent: "Prepare the Android version 6 compliance update for open testing while iOS is paused on entitlement and signing prerequisites."
 stores:
   - ios
   - android
@@ -18,7 +18,7 @@ ios:
   ipa: build/ios/export/SuperAlarm.ipa
   app_id: "6770966337"
   asc: op://Mobile App Releases/Apple App Store Connect API Key/credential
-  current_store_state: WAITING_FOR_REVIEW
+  current_store_state: REJECTED
   current_uploaded_max_build: 6
   next_build: 7
   signing: local Apple Distribution, manual profile "Super Alarm App Store"
@@ -32,20 +32,21 @@ android:
   package: com.superalarm.app
   track: open
   api_track: beta
-  status: completed
+  status: blocked
   uploaded_tracks:
     - internal
     - beta
   testing_opt_in_url: https://play.google.com/apps/testing/com.superalarm.app
   store_url: https://play.google.com/store/apps/details?id=com.superalarm.app
   aab: android/app/build/outputs/bundle/release/app-release.aab
-  aab_sha256: 5f53e4238457e6f5b6024b63e5f530d2fa9fbbb35ce9520c18e5120fb701bf14
-  version_code: 5
+  unsigned_aab: android/app/build/intermediates/intermediary_bundle/release/packageReleaseBundle/intermediary-bundle.aab
+  unsigned_aab_sha256: 348338077c73f38c892ab07805bd55fb693875a6b3025b3aa7d9573ff785f034
+  version_code: 6
   version_name: 1.0.0
   play: env:GOOGLE_APPLICATION_CREDENTIALS
   data_safety: ref:docs/play-data-safety.csv
-  result: "Uploaded and committed versionCode 5 to internal testing and open testing (Publisher API beta track)."
-  next_action: "Share testing opt-in URL; monitor Play review/availability."
+  result: "Version 6 removes Device Administrator uninstall protection. Its unsigned release bundle passes gplay preflight with zero warnings or errors, and debug unit tests pass. The signed upload bundle is blocked because the local upload keystore and signing properties are missing."
+  next_action: "Recover the private upload key matching SHA-256 56:95:CD:E1:B7:4A:B1:8D:12:B8:B9:94:73:58:92:41:94:EF:C8:47:48:13:A7:C4:4D:8E:53:E9:EE:85:31:3C, or have a Play Console account with key-management permission request an upload-key reset. Then sign version 6, test it on a physical device, upload it to open testing, and replace the pending version 5 rollout."
 review:
   demo: null
   apple_notes: "No account required. Create a QR spot, allow notifications and camera, enable the alarm, then use Test Alarm. On iOS, Critical Alerts are requested only when the signed entitlement is present; otherwise the app uses standard local notifications and opens the QR dismissal flow when the notification is tapped."
@@ -67,7 +68,11 @@ controls:
 blockers:
   - "Apple Critical Alerts cannot be enabled through the App Store Connect bundle capability API; Apple rejected CRITICAL_ALERTS as an unsupported CLI capability type. Request/approval must be completed through Apple special entitlement flow, then the provisioning profile must be regenerated."
   - "The existing signed IPA is build 6 and App Store Connect validation says build 6 has already been used; the next TestFlight upload must be build 7 or higher. Source has been bumped to build 7, but a new signed IPA has not been exported yet."
+  - "The Android upload keystore and android/super-alarm-signing.properties are missing. The current Play Console user can view the upload certificate but does not have permission to request an upload-key reset."
+  - "Google Play's Foreground service permissions declaration is overdue. The correct selection is Media playback; saving the declaration requires an authorised representational submission to Google."
+  - "The five July 11 Android screenshots include one stale Health screen showing removed uninstall protection. Fresh uncompressed Android screenshots are still required. All iOS screenshots are stale and have been removed."
 risks:
   - "Native migration real-device QA is still needed for lock-screen/full-screen alarm behavior, camera QR scanning, notification permissions, haptics/vibration, and accessibility."
   - "Android open testing maps to Android Publisher API track beta; do not upload to production for this native validation pass."
+  - "Managed publishing has an approved versionCode 5 open-testing rollout waiting to be published. Do not publish it because it still contains uninstall protection; supersede it with versionCode 6."
   - "iOS uses scheduled local notifications, not Android-style full-screen exact alarms; Critical Alerts improve notification delivery but do not create an Android-style background ringing service."

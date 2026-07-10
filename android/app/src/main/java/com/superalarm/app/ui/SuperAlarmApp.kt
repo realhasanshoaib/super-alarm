@@ -440,7 +440,6 @@ private fun HealthScreen(modifier: Modifier, state: AppState, store: SuperAlarmS
   val caps = remember(refreshKey) { store.capabilities() }
   val context = LocalContext.current
   val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { refreshKey++ }
-  val deviceAdminLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { refreshKey++ }
   LazyColumn(modifier = modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)) {
     item { HealthRow("Notifications", caps.notificationsGranted, "Required for foreground alarm alerts") {
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -448,7 +447,6 @@ private fun HealthScreen(modifier: Modifier, state: AppState, store: SuperAlarmS
     item { HealthRow("Exact alarms", caps.exactAlarmAllowed, "Required for reliable wake-up time", store::openExactAlarmSettings) }
     item { HealthRow("Full-screen intent", caps.fullscreenIntentAllowed, "Opens the ringing screen while locked", store::openFullscreenSettings) }
     item { HealthRow("Battery optimization", caps.batteryOptimizationRelaxed, "Relax this if alarms are delayed", store::openBatterySettings) }
-    item { HealthRow("Uninstall protection", caps.uninstallProtectionActive, "Adds a deliberate deactivation step before uninstalling", { deviceAdminLauncher.launch(store.deviceAdminActivationIntent()) }) }
     item { Button(onClick = store::startRoutineTest, modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(52.dp)) { Text("Run routine test") } }
     item { OutlinedButton(onClick = { shareText(context, store.diagnosticsJson()) }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(52.dp)) { Text("Export diagnostics") } }
     item {

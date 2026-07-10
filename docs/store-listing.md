@@ -6,7 +6,7 @@ Super Alarm
 ## Short description
 A calm QR alarm that gets you out of bed.
 
-## Full description
+## Google Play full description
 Super Alarm turns waking up into a simple, intentional routine. Set your alarm, choose a real-world QR code location, and scan it when the alarm opens the QR dismissal flow.
 
 Built with a calmer morning feel, Super Alarm keeps the flow focused: warm visuals, clear setup, and a reliable QR dismissal path for people who need more than a swipe-to-snooze alarm.
@@ -20,6 +20,20 @@ Features:
 - Local notification wake flow on iOS
 - Backup re-rings
 - Boot restore on Android
+- Reliability checklist
+- Local diagnostics export
+
+Super Alarm does not require an account and does not use ads or tracking.
+
+## Apple App Store description
+Super Alarm turns waking up into a simple, intentional routine. Set your alarm, choose a real-world QR code location, and scan it when the alarm opens the QR dismissal flow.
+
+Built with a calmer morning feel, Super Alarm keeps the flow focused: warm visuals, clear setup, and a reliable QR dismissal path for people who need more than a swipe-to-snooze alarm.
+
+Features:
+- QR-code dismissal flow
+- Scheduled notification wake flow
+- Backup notifications
 - Reliability checklist
 - Local diagnostics export
 
