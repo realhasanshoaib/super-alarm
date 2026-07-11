@@ -32,7 +32,7 @@ android:
   package: com.superalarm.app
   track: open
   api_track: beta
-  status: in_review
+  status: physical_qa_pending
   uploaded_tracks:
     - internal
     - beta
@@ -46,12 +46,12 @@ android:
   version_name: 1.0.0
   play: env:GOOGLE_APPLICATION_CREDENTIALS
   data_safety: ref:docs/play-data-safety.csv
-  result: "Version 6 removes Device Administrator uninstall protection. The signed AAB matches Play's registered upload certificate, passes gplay preflight with zero warnings or errors, and is the completed beta/open-testing release. Six fresh 1080x1920 RGB screenshots replaced the seven stale Play screenshots. Emulator QA verified launch, QR enrollment, time editing, QR display, Health without uninstall protection, foreground alarm notification, ringing UI, and test dismissal. The Media playback foreground-service declaration was saved with the public proof video and sent to Google for review; a fresh Publishing overview load shows it under Changes in review. Managed publishing remains on, and production remains versionCode 4."
+  result: "Version 6 removes Device Administrator uninstall protection. The signed AAB matches Play's registered upload certificate, passes gplay preflight with zero warnings or errors, and is the completed beta/open-testing release. Six fresh 1080x1920 RGB screenshots replaced the seven stale Play screenshots. Emulator QA verified launch, QR enrollment, time editing, QR display, Health without uninstall protection, foreground alarm notification, ringing UI, and test dismissal. The Media playback foreground-service declaration was saved with the public proof video and is Actioned in App content with no policy issues. Managed publication completed on 11 July 2026; the pending queue is empty, open testing is live on versionCode 6, and production remains versionCode 4."
   foreground_service_video: store/media/google-play/foreground-service-media-playback-demo-vc6-20260711.mp4
   foreground_service_video_sha256: 2caf796839fdefe943b74788d109572b33f3e496a4c886f788bd511b5db859fc
   foreground_service_video_url: https://youtube.com/shorts/EZVvp7KBpHg?feature=share
-  foreground_service_declaration: in_review
-  next_action: "Wait for Google's foreground-service declaration review, then verify lock-screen alarm, camera QR scanning, audio, and vibration on a physical Android device before promoting beyond open testing."
+  foreground_service_declaration: actioned
+  next_action: "Install versionCode 6 from open testing and verify lock-screen alarm, camera QR scanning, audio, and vibration on a physical Android device before promoting to production."
 review:
   demo: null
   apple_notes: "No account required. Create a QR spot, allow notifications and camera, enable the alarm, then use Test Alarm. On iOS, Critical Alerts are requested only when the signed entitlement is present; otherwise the app uses standard local notifications and opens the QR dismissal flow when the notification is tapped."

@@ -22,7 +22,7 @@ Evidence: `android/app/src/main/java/com/superalarm/app/features/qr/QrScannerVie
 
 Declaration selection: Media playback.
 
-The declaration was submitted to Google for review on 11 July 2026 with the public proof video at <https://youtube.com/shorts/EZVvp7KBpHg?feature=share>. The local evidence clip is `store/media/google-play/foreground-service-media-playback-demo-vc6-20260711.mp4` (SHA-256 `2caf796839fdefe943b74788d109572b33f3e496a4c886f788bd511b5db859fc`). It shows the ringing UI and ongoing foreground-service notification. A fresh Play Console Publishing overview load showed the declaration under **Changes in review**.
+The declaration was submitted on 11 July 2026 with the public proof video at <https://youtube.com/shorts/EZVvp7KBpHg?feature=share>. The local evidence clip is `store/media/google-play/foreground-service-media-playback-demo-vc6-20260711.mp4` (SHA-256 `2caf796839fdefe943b74788d109572b33f3e496a4c886f788bd511b5db859fc`). It shows the ringing UI and ongoing foreground-service notification. After managed publication, Play Console lists Foreground service permissions under **Actioned**, shows no policy issues, and has no pending publishing changes.
 
 The foreground service starts only for a user-configured alarm or the user-invoked Test Alarm flow. It plays audible alarm media, vibrates when enabled, and displays an ongoing alarm-category notification while the alarm is ringing. Scanning an approved QR code stops the service.
 
