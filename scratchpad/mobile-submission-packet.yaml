@@ -1,7 +1,7 @@
 ---
 v: 1
 status: blocked
-intent: "Prepare the Android version 6 compliance update for open testing while iOS is paused on entitlement and signing prerequisites."
+intent: "Complete Android version 6 policy review and physical-device QA while iOS is paused on entitlement, signing, and screenshot prerequisites."
 stores:
   - ios
   - android
@@ -32,7 +32,7 @@ android:
   package: com.superalarm.app
   track: open
   api_track: beta
-  status: blocked
+  status: in_review
   uploaded_tracks:
     - internal
     - beta
@@ -46,10 +46,12 @@ android:
   version_name: 1.0.0
   play: env:GOOGLE_APPLICATION_CREDENTIALS
   data_safety: ref:docs/play-data-safety.csv
-  result: "Version 6 removes Device Administrator uninstall protection. The signed AAB matches Play's registered upload certificate, passes gplay preflight with zero warnings or errors, and is the completed beta/open-testing release. Six fresh 1080x1920 RGB screenshots replaced the seven stale Play screenshots. Emulator QA verified launch, QR enrollment, time editing, QR display, Health without uninstall protection, foreground alarm notification, ringing UI, and test dismissal."
+  result: "Version 6 removes Device Administrator uninstall protection. The signed AAB matches Play's registered upload certificate, passes gplay preflight with zero warnings or errors, and is the completed beta/open-testing release. Six fresh 1080x1920 RGB screenshots replaced the seven stale Play screenshots. Emulator QA verified launch, QR enrollment, time editing, QR display, Health without uninstall protection, foreground alarm notification, ringing UI, and test dismissal. The Media playback foreground-service declaration was saved with the public proof video and sent to Google for review; a fresh Publishing overview load shows it under Changes in review. Managed publishing remains on, and production remains versionCode 4."
   foreground_service_video: store/media/google-play/foreground-service-media-playback-demo-vc6-20260711.mp4
   foreground_service_video_sha256: 2caf796839fdefe943b74788d109572b33f3e496a4c886f788bd511b5db859fc
-  next_action: "Host the foreground-service demo at a public URL and save the authorised Media playback declaration. Then verify lock-screen alarm, camera QR scanning, audio, and vibration on a physical Android device before promoting beyond open testing."
+  foreground_service_video_url: https://youtube.com/shorts/EZVvp7KBpHg?feature=share
+  foreground_service_declaration: in_review
+  next_action: "Wait for Google's foreground-service declaration review, then verify lock-screen alarm, camera QR scanning, audio, and vibration on a physical Android device before promoting beyond open testing."
 review:
   demo: null
   apple_notes: "No account required. Create a QR spot, allow notifications and camera, enable the alarm, then use Test Alarm. On iOS, Critical Alerts are requested only when the signed entitlement is present; otherwise the app uses standard local notifications and opens the QR dismissal flow when the notification is tapped."
@@ -71,7 +73,6 @@ controls:
 blockers:
   - "Apple Critical Alerts cannot be enabled through the App Store Connect bundle capability API; Apple rejected CRITICAL_ALERTS as an unsupported CLI capability type. Request/approval must be completed through Apple special entitlement flow, then the provisioning profile must be regenerated."
   - "The existing signed IPA is build 6 and App Store Connect validation says build 6 has already been used; the next TestFlight upload must be build 7 or higher. Source has been bumped to build 7, but a new signed IPA has not been exported yet."
-  - "Google Play's Foreground service permissions declaration is overdue. The correct selection is Media playback, which requires a public video-link field. The local demonstration is recorded and validated; host it publicly before the authorised declaration can be saved."
   - "All iOS screenshots are stale and have been removed. Fresh iPhone screenshots are required before the next iOS submission."
 risks:
   - "Native migration real-device QA is still needed for lock-screen/full-screen alarm behavior, camera QR scanning, notification permissions, haptics/vibration, and accessibility."
