@@ -69,7 +69,7 @@ blockers:
   - "Apple Critical Alerts cannot be enabled through the App Store Connect bundle capability API; Apple rejected CRITICAL_ALERTS as an unsupported CLI capability type. Request/approval must be completed through Apple special entitlement flow, then the provisioning profile must be regenerated."
   - "The existing signed IPA is build 6 and App Store Connect validation says build 6 has already been used; the next TestFlight upload must be build 7 or higher. Source has been bumped to build 7, but a new signed IPA has not been exported yet."
   - "The Android upload keystore and android/super-alarm-signing.properties are missing. The current Play Console user can view the upload certificate but does not have permission to request an upload-key reset."
-  - "Google Play's Foreground service permissions declaration is overdue. The correct selection is Media playback; saving the declaration requires an authorised representational submission to Google."
+  - "Google Play's Foreground service permissions declaration is overdue. The correct selection is Media playback, which reveals a required public video-link field. Record and host a demonstration of alarm playback and dismissal before the authorised declaration can be saved."
   - "The five July 11 Android screenshots include one stale Health screen showing removed uninstall protection. Fresh uncompressed Android screenshots are still required. All iOS screenshots are stale and have been removed."
 risks:
   - "Native migration real-device QA is still needed for lock-screen/full-screen alarm behavior, camera QR scanning, notification permissions, haptics/vibration, and accessibility."

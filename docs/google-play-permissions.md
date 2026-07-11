@@ -22,6 +22,8 @@ Evidence: `android/app/src/main/java/com/superalarm/app/features/qr/QrScannerVie
 
 Declaration selection: Media playback.
 
+Play Console submission also requires a public video link demonstrating this flow. Record an alarm starting while the app is not being actively used, the audible ringing state with its ongoing notification, and successful dismissal that stops playback.
+
 The foreground service starts only for a user-configured alarm or the user-invoked Test Alarm flow. It plays audible alarm media, vibrates when enabled, and displays an ongoing alarm-category notification while the alarm is ringing. Scanning an approved QR code stops the service.
 
 Evidence: `android/app/src/main/AndroidManifest.xml` declares `FOREGROUND_SERVICE_MEDIA_PLAYBACK` and the `mediaPlayback` service type. `android/app/src/main/java/com/superalarm/app/alarm/AlarmReceiver.kt` starts the service when an alarm fires. `android/app/src/main/java/com/superalarm/app/alarm/AlarmRingingService.kt` starts foreground playback and creates the visible notification. `android/app/src/main/java/com/superalarm/app/data/SuperAlarmStore.kt` stops the service after valid QR dismissal.
