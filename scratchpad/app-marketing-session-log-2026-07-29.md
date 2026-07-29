@@ -1,0 +1,4 @@
+# App marketing session log — 2026-07-29
+
+- 2026-07-29 17:28 PKT — Inventoried Hasan's public portfolio from `hasanshoaib.com` source. The immediate marketing set is Super Alarm, Sip, Murmur, and Track; Bolo is deferred. Hasan selected app installs as the 90-day goal and a roughly $20–$50 monthly budget, while leaving the umbrella-versus-product account decision open.
+- 2026-07-29 17:35 PKT — Checked current official Meta and Higgsfield guidance. Instagram professional accounts and native scheduling are free; paid distribution is optional. Meta supports official programmatic publishing for owned professional accounts, and Higgsfield now exposes agent generation through MCP/CLI plus Instagram publishing through Supercomputer social connectors. Identified a hybrid umbrella-first strategy as the lowest-overhead fit for four products and a small budget.
