@@ -95,7 +95,7 @@ class AlarmRingingService : Service() {
     NotificationCompat.Builder(this, AlarmConstants.NOTIFICATION_CHANNEL_ID)
       .setSmallIcon(R.mipmap.ic_launcher)
       .setContentTitle(if (kind == "test") "Test alarm running" else "Super Alarm ringing")
-      .setContentText(if (backupStage > 0) "Backup ring is active. Scan a valid QR to dismiss." else "Scan a valid QR to dismiss.")
+      .setContentText(if (backupStage > 0) "Backup ring is active. Scan an allowed target to dismiss." else "Scan an allowed target to dismiss.")
       .setPriority(NotificationCompat.PRIORITY_MAX)
       .setCategory(NotificationCompat.CATEGORY_ALARM)
       .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)

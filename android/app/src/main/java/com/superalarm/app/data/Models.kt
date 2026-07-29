@@ -15,12 +15,19 @@ data class AlarmConfig(
   val vibrationEnabled: Boolean = true,
   val backupOffsetsSeconds: List<Int> = listOf(45, 120),
   val allowedLocationIds: List<String> = emptyList(),
+  val allowedObjectTargetIds: List<String> = emptyList(),
 )
 
 data class QrLocation(
   val id: String = UUID.randomUUID().toString(),
   val label: String,
   val payload: String = "superalarm://alarm-qr/${UUID.randomUUID()}",
+)
+
+data class ObjectTarget(
+  val id: String = UUID.randomUUID().toString(),
+  val label: String,
+  val embeddings: List<String>,
 )
 
 data class AlarmAttempt(
@@ -32,6 +39,7 @@ data class AlarmAttempt(
   val result: String = "ringing",
   val backupStage: Int = 0,
   val dismissalLocationId: String? = null,
+  val dismissalMethod: String? = null,
 )
 
 data class AlarmRuntimeState(
@@ -59,6 +67,7 @@ data class ReliabilityChecklistState(
 data class AppState(
   val alarm: AlarmConfig = AlarmConfig(),
   val qrLocations: List<QrLocation> = emptyList(),
+  val objectTargets: List<ObjectTarget> = emptyList(),
   val attempts: List<AlarmAttempt> = emptyList(),
   val diagnosticEvents: List<AlarmDiagnosticEvent> = emptyList(),
   val runtime: AlarmRuntimeState? = null,
@@ -68,6 +77,7 @@ data class AppState(
 fun AppState.toJson(): JSONObject = JSONObject().apply {
   put("alarm", alarm.toJson())
   put("qrLocations", JSONArray(qrLocations.map { it.toJson() }))
+  put("objectTargets", JSONArray(objectTargets.map { it.toJson() }))
   put("attempts", JSONArray(attempts.map { it.toJson() }))
   put("diagnosticEvents", JSONArray(diagnosticEvents.map { it.toJson() }))
   put("runtime", runtime?.toJson() ?: JSONObject.NULL)
@@ -77,6 +87,7 @@ fun AppState.toJson(): JSONObject = JSONObject().apply {
 fun appStateFromJson(json: JSONObject): AppState = AppState(
   alarm = alarmFromJson(json.optJSONObject("alarm") ?: JSONObject()),
   qrLocations = json.optJSONArray("qrLocations").toObjectList(::qrLocationFromJson),
+  objectTargets = json.optJSONArray("objectTargets").toObjectList(::objectTargetFromJson),
   attempts = json.optJSONArray("attempts").toObjectList(::attemptFromJson),
   diagnosticEvents = json.optJSONArray("diagnosticEvents").toObjectList(::eventFromJson),
   runtime = json.optJSONObject("runtime")?.let(::runtimeFromJson),
@@ -93,6 +104,7 @@ fun AlarmConfig.toJson(): JSONObject = JSONObject().apply {
   put("vibrationEnabled", vibrationEnabled)
   put("backupOffsetsSeconds", JSONArray(backupOffsetsSeconds))
   put("allowedLocationIds", JSONArray(allowedLocationIds))
+  put("allowedObjectTargetIds", JSONArray(allowedObjectTargetIds))
 }
 
 fun alarmFromJson(json: JSONObject): AlarmConfig = AlarmConfig(
@@ -105,6 +117,7 @@ fun alarmFromJson(json: JSONObject): AlarmConfig = AlarmConfig(
   vibrationEnabled = json.optBoolean("vibrationEnabled", true),
   backupOffsetsSeconds = json.optJSONArray("backupOffsetsSeconds").toIntList(default = listOf(45, 120)),
   allowedLocationIds = json.optJSONArray("allowedLocationIds").toStringList(),
+  allowedObjectTargetIds = json.optJSONArray("allowedObjectTargetIds").toStringList(),
 )
 
 fun QrLocation.toJson(): JSONObject = JSONObject().apply {
@@ -119,6 +132,18 @@ fun qrLocationFromJson(json: JSONObject): QrLocation = QrLocation(
   payload = json.optString("payload", "superalarm://alarm-qr/${UUID.randomUUID()}"),
 )
 
+fun ObjectTarget.toJson(): JSONObject = JSONObject().apply {
+  put("id", id)
+  put("label", label)
+  put("embeddings", JSONArray(embeddings))
+}
+
+fun objectTargetFromJson(json: JSONObject): ObjectTarget = ObjectTarget(
+  id = json.optString("id", UUID.randomUUID().toString()),
+  label = json.optString("label", "Wake object"),
+  embeddings = json.optJSONArray("embeddings").toStringList(),
+)
+
 fun AlarmAttempt.toJson(): JSONObject = JSONObject().apply {
   put("id", id)
   put("alarmId", alarmId)
@@ -128,6 +153,7 @@ fun AlarmAttempt.toJson(): JSONObject = JSONObject().apply {
   put("result", result)
   put("backupStage", backupStage)
   put("dismissalLocationId", dismissalLocationId ?: JSONObject.NULL)
+  put("dismissalMethod", dismissalMethod ?: JSONObject.NULL)
 }
 
 fun attemptFromJson(json: JSONObject): AlarmAttempt = AlarmAttempt(
@@ -139,6 +165,7 @@ fun attemptFromJson(json: JSONObject): AlarmAttempt = AlarmAttempt(
   result = json.optString("result", "ringing"),
   backupStage = json.optInt("backupStage", 0),
   dismissalLocationId = json.optNullableString("dismissalLocationId"),
+  dismissalMethod = json.optNullableString("dismissalMethod"),
 )
 
 fun AlarmRuntimeState.toJson(): JSONObject = JSONObject().apply {

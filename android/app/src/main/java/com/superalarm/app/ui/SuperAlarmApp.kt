@@ -5,7 +5,6 @@ import android.content.Intent
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -27,19 +26,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Alarm
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.HealthAndSafety
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.QrCodeScanner
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -70,7 +66,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
@@ -84,18 +79,16 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.superalarm.app.BuildConfig
 import com.superalarm.app.data.AlarmConfig
 import com.superalarm.app.data.AppState
-import com.superalarm.app.data.QrLocation
 import com.superalarm.app.data.alarmWaitMinutes
 import com.superalarm.app.data.sleepWakeTimeMinutes
 import com.superalarm.app.data.SuperAlarmStore
-import com.superalarm.app.features.qr.QrScannerView
-import com.superalarm.app.features.qr.qrBitmap
+import com.superalarm.app.features.objectscan.ObjectEnrollmentScreen
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
 
-private enum class Tab { Alarm, Spots, Health }
+private enum class Tab { Alarm, Dismissal, Health }
 
 @Composable
 fun SuperAlarmApp(store: SuperAlarmStore) {
@@ -118,16 +111,58 @@ fun SuperAlarmApp(store: SuperAlarmStore) {
 private fun SuperAlarmRoot(store: SuperAlarmStore) {
   val state by store.state.collectAsStateWithLifecycle()
   var tab by remember { mutableStateOf(Tab.Alarm) }
+  var enrollmentLabel by remember { mutableStateOf<String?>(null) }
+  var pendingEnrollmentLabel by remember { mutableStateOf<String?>(null) }
+  var cameraDenied by remember { mutableStateOf(false) }
   val snackbar = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
+  val enrollmentPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+    if (granted) {
+      enrollmentLabel = pendingEnrollmentLabel
+      cameraDenied = false
+    } else {
+      cameraDenied = true
+    }
+    pendingEnrollmentLabel = null
+  }
 
-  if (!state.onboardingComplete && state.qrLocations.isEmpty()) {
-    OnboardingScreen(onCreateSpot = { label -> store.addLocation(label) })
+  val requestEnrollment: (String) -> Unit = { label ->
+    val normalized = label.ifBlank { "Wake object" }
+    if (store.cameraGranted()) {
+      enrollmentLabel = normalized
+    } else {
+      pendingEnrollmentLabel = normalized
+      enrollmentPermission.launch(Manifest.permission.CAMERA)
+    }
+  }
+
+  state.runtime?.let { runtime ->
+    LaunchedEffect(runtime.attemptId) {
+      enrollmentLabel = null
+      pendingEnrollmentLabel = null
+    }
+    RingingScreen(store = store, state = state)
     return
   }
 
-  state.runtime?.let {
-    RingingScreen(store = store, state = state)
+  enrollmentLabel?.let { label ->
+    ObjectEnrollmentScreen(
+      label = label,
+      onCancel = { enrollmentLabel = null },
+      onComplete = { embeddings ->
+        store.addObjectTarget(label, embeddings)
+        enrollmentLabel = null
+      },
+    )
+    return
+  }
+
+  if (!state.onboardingComplete && state.qrLocations.isEmpty() && state.objectTargets.isEmpty()) {
+    OnboardingScreen(
+      cameraDenied = cameraDenied,
+      onCreateSpot = { label -> store.addLocation(label) },
+      onScanObject = requestEnrollment,
+    )
     return
   }
 
@@ -137,7 +172,7 @@ private fun SuperAlarmRoot(store: SuperAlarmStore) {
     bottomBar = {
       NavigationBar {
         NavigationBarItem(selected = tab == Tab.Alarm, onClick = { tab = Tab.Alarm }, icon = { Icon(Icons.Default.Alarm, null) }, label = { Text("Alarm") })
-        NavigationBarItem(selected = tab == Tab.Spots, onClick = { tab = Tab.Spots }, icon = { Icon(Icons.Default.QrCodeScanner, null) }, label = { Text("QR spots") })
+        NavigationBarItem(selected = tab == Tab.Dismissal, onClick = { tab = Tab.Dismissal }, icon = { Icon(Icons.Default.QrCodeScanner, null) }, label = { Text("Dismiss") })
         NavigationBarItem(selected = tab == Tab.Health, onClick = { tab = Tab.Health }, icon = { Icon(Icons.Default.HealthAndSafety, null) }, label = { Text("Health") })
       }
     },
@@ -147,35 +182,48 @@ private fun SuperAlarmRoot(store: SuperAlarmStore) {
         modifier = Modifier.padding(padding),
         state = state,
         onToggleEnabled = { enabled ->
-          if (!store.setEnabled(enabled)) scope.launch { snackbar.showSnackbar("Add an allowed QR spot first") }
+          if (!store.setEnabled(enabled)) scope.launch { snackbar.showSnackbar("Add an allowed QR spot or object first") }
         },
         onTime = store::setTime,
         onDay = store::toggleDay,
         onVibration = store::setVibration,
       )
-      Tab.Spots -> SpotsScreen(Modifier.padding(padding), state, store)
+      Tab.Dismissal -> DismissalTargetsScreen(Modifier.padding(padding), state, store, requestEnrollment)
       Tab.Health -> HealthScreen(Modifier.padding(padding), state, store)
     }
   }
 }
 
 @Composable
-private fun OnboardingScreen(onCreateSpot: (String) -> Unit) {
-  var label by remember { mutableStateOf("Bathroom mirror") }
+private fun OnboardingScreen(
+  cameraDenied: Boolean,
+  onCreateSpot: (String) -> Unit,
+  onScanObject: (String) -> Unit,
+) {
+  var label by remember { mutableStateOf("Fridge") }
   Column(
     modifier = Modifier.fillMaxSize().padding(24.dp),
     verticalArrangement = Arrangement.Center,
   ) {
-    Text("Add your first QR spot", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
+    Text("Choose how to dismiss", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
     Spacer(Modifier.height(12.dp))
-    Text("Your alarm can only be dismissed from an allowed QR spot. Start with the place you actually get out of bed to reach.")
+    Text("Scan a household object with your camera, or create a QR spot. Pick something you must get out of bed to reach.")
     Spacer(Modifier.height(24.dp))
-    OutlinedTextField(value = label, onValueChange = { label = it }, label = { Text("Spot label") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(value = label, onValueChange = { label = it }, label = { Text("Object or spot label") }, singleLine = true, modifier = Modifier.fillMaxWidth())
     Spacer(Modifier.height(16.dp))
-    Button(onClick = { onCreateSpot(label) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+    Button(onClick = { onScanObject(label) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+      Icon(Icons.Default.PhotoCamera, null)
+      Spacer(Modifier.size(8.dp))
+      Text("Scan object")
+    }
+    Spacer(Modifier.height(8.dp))
+    OutlinedButton(onClick = { onCreateSpot(label) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
       Icon(Icons.Default.Add, null)
       Spacer(Modifier.size(8.dp))
       Text("Create QR spot")
+    }
+    if (cameraDenied) {
+      Text("Camera access is required to scan an object.", color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 12.dp))
     }
   }
 }
@@ -212,7 +260,10 @@ private fun AlarmScreen(
     item {
       ListItem(
         headlineContent = { Text("Alarm enabled") },
-        supportingContent = { Text(if (state.alarm.allowedLocationIds.isEmpty()) "Requires at least one allowed QR spot" else "Next ring uses allowed QR spots only") },
+        supportingContent = {
+          val allowedCount = state.alarm.allowedLocationIds.size + state.alarm.allowedObjectTargetIds.size
+          Text(if (allowedCount == 0) "Requires an allowed QR spot or object" else "$allowedCount dismissal target${if (allowedCount == 1) "" else "s"} allowed")
+        },
         trailingContent = { Switch(checked = state.alarm.enabled, onCheckedChange = onToggleEnabled) },
       )
     }
@@ -373,68 +424,6 @@ private fun DayPicker(selected: List<Int>, onDay: (Int) -> Unit) {
 }
 
 @Composable
-private fun SpotsScreen(modifier: Modifier, state: AppState, store: SuperAlarmStore) {
-  var showAdd by remember { mutableStateOf(false) }
-  var selected by remember { mutableStateOf<QrLocation?>(null) }
-  LazyColumn(modifier = modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    item { Button(onClick = { showAdd = true }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Icon(Icons.Default.Add, null); Spacer(Modifier.size(8.dp)); Text("Add QR spot") } }
-    if (state.qrLocations.isEmpty()) {
-      item { Text("No QR spots yet. Add one before enabling the alarm.", modifier = Modifier.padding(16.dp)) }
-    }
-    items(state.qrLocations, key = { it.id }) { location ->
-      val allowed = state.alarm.allowedLocationIds.contains(location.id)
-      ListItem(
-        headlineContent = { Text(location.label) },
-        supportingContent = { Text(if (allowed) "Allowed to dismiss" else "Not allowed for this alarm") },
-        leadingContent = { Checkbox(checked = allowed, onCheckedChange = { store.toggleAllowed(location.id) }) },
-        trailingContent = {
-          Row {
-            IconButton(onClick = { selected = location }) { Icon(Icons.Default.Share, "Show QR") }
-            IconButton(onClick = { store.deleteLocation(location.id) }) { Icon(Icons.Default.Delete, "Delete") }
-          }
-        },
-      )
-    }
-  }
-  if (showAdd) AddSpotDialog(onDismiss = { showAdd = false }, onAdd = { store.addLocation(it); showAdd = false })
-  selected?.let { QrDialog(location = it, onDismiss = { selected = null }) }
-}
-
-@Composable
-private fun AddSpotDialog(onDismiss: () -> Unit, onAdd: (String) -> Unit) {
-  var label by remember { mutableStateOf("") }
-  AlertDialog(
-    onDismissRequest = onDismiss,
-    title = { Text("New QR spot") },
-    text = { OutlinedTextField(value = label, onValueChange = { label = it }, label = { Text("Spot label") }, singleLine = true) },
-    confirmButton = { TextButton(onClick = { onAdd(label) }) { Text("Create") } },
-    dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-  )
-}
-
-@Composable
-private fun QrDialog(location: QrLocation, onDismiss: () -> Unit) {
-  val context = LocalContext.current
-  val bitmap = remember(location.payload) { qrBitmap(location.payload).asImageBitmap() }
-  AlertDialog(
-    onDismissRequest = onDismiss,
-    title = { Text(location.label) },
-    text = {
-      Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Image(bitmap = bitmap, contentDescription = "QR code for ${location.label}", modifier = Modifier.fillMaxWidth().aspectRatio(1f))
-        Text(location.payload, style = MaterialTheme.typography.bodySmall)
-      }
-    },
-    confirmButton = {
-      TextButton(onClick = {
-        context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, location.payload) }, "Share QR payload"))
-      }) { Text("Share") }
-    },
-    dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } },
-  )
-}
-
-@Composable
 private fun HealthScreen(modifier: Modifier, state: AppState, store: SuperAlarmStore) {
   var refreshKey by remember { mutableStateOf(0) }
   val caps = remember(refreshKey) { store.capabilities() }
@@ -469,33 +458,6 @@ private fun HealthRow(title: String, ok: Boolean, detail: String, onClick: () ->
     leadingContent = { Box(Modifier.size(12.dp).background(if (ok) Color(0xFF2E7D32) else Color(0xFFC2410C), CircleShape)) },
     trailingContent = { if (!ok) TextButton(onClick = onClick) { Text("Open") } },
   )
-}
-
-@Composable
-private fun RingingScreen(store: SuperAlarmStore, state: AppState) {
-  val allowed = state.qrLocations.filter { state.alarm.allowedLocationIds.contains(it.id) }
-  var scanner by remember { mutableStateOf(false) }
-  val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { scanner = it }
-  Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-    Text(if (state.runtime?.kind == "test") "Test alarm" else "Alarm", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
-    Spacer(Modifier.height(8.dp))
-    Text("Scan an allowed QR spot to dismiss.")
-    Spacer(Modifier.height(16.dp))
-    allowed.forEach { Text(it.label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(4.dp)) }
-    Spacer(Modifier.height(24.dp))
-    Button(onClick = { if (store.cameraGranted()) scanner = true else permission.launch(Manifest.permission.CAMERA) }, modifier = Modifier.fillMaxWidth().height(56.dp)) {
-      Icon(Icons.Default.QrCodeScanner, null)
-      Spacer(Modifier.size(8.dp))
-      Text("Scan QR")
-    }
-    if (state.runtime?.kind == "test") TextButton(onClick = store::dismissWithoutScanForTestOnly, modifier = Modifier.padding(top = 8.dp)) { Text("Stop test") }
-  }
-  if (scanner) {
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
-      QrScannerView(modifier = Modifier.fillMaxSize(), onPayload = { if (store.dismissWithPayload(it)) scanner = false })
-      TextButton(onClick = { scanner = false }, modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)) { Text("Close", color = Color.White) }
-    }
-  }
 }
 
 private fun formatMinutes(minutes: Int): String {

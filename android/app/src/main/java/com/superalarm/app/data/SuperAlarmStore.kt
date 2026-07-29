@@ -60,8 +60,8 @@ class SuperAlarmStore(private val context: Context) {
   fun setVibration(enabled: Boolean) = mutateAlarm { it.copy(vibrationEnabled = enabled) }
 
   fun setEnabled(enabled: Boolean): Boolean {
-    if (enabled && _state.value.alarm.allowedLocationIds.isEmpty()) {
-      addEvent("enable_blocked", "Add an allowed QR spot before enabling the alarm.")
+    if (enabled && !_state.value.alarm.hasDismissalTarget()) {
+      addEvent("enable_blocked", "Add an allowed QR spot or object before enabling the alarm.")
       return false
     }
     mutateAlarm { it.copy(enabled = enabled) }
@@ -83,12 +83,10 @@ class SuperAlarmStore(private val context: Context) {
   fun deleteLocation(locationId: String) {
     update { state ->
       val remainingAllowed = state.alarm.allowedLocationIds - locationId
+      val alarm = state.alarm.copy(allowedLocationIds = remainingAllowed)
       state.copy(
         qrLocations = state.qrLocations.filterNot { it.id == locationId },
-        alarm = state.alarm.copy(
-          allowedLocationIds = remainingAllowed,
-          enabled = state.alarm.enabled && remainingAllowed.isNotEmpty(),
-        ),
+        alarm = alarm.copy(enabled = alarm.enabled && alarm.hasDismissalTarget()),
       )
     }
   }
@@ -97,7 +95,44 @@ class SuperAlarmStore(private val context: Context) {
     update { state ->
       val current = state.alarm.allowedLocationIds
       val next = if (current.contains(locationId)) current - locationId else (current + locationId).distinct()
-      state.copy(alarm = state.alarm.copy(allowedLocationIds = next, enabled = state.alarm.enabled && next.isNotEmpty()))
+      val alarm = state.alarm.copy(allowedLocationIds = next)
+      state.copy(alarm = alarm.copy(enabled = alarm.enabled && alarm.hasDismissalTarget()))
+    }
+  }
+
+  fun addObjectTarget(label: String, embeddings: List<String>): ObjectTarget {
+    require(embeddings.isNotEmpty())
+    val target = ObjectTarget(label = label.ifBlank { "Wake object" }, embeddings = embeddings)
+    update { state ->
+      state.copy(
+        objectTargets = state.objectTargets + target,
+        alarm = state.alarm.copy(
+          allowedObjectTargetIds = (state.alarm.allowedObjectTargetIds + target.id).distinct(),
+        ),
+        onboardingComplete = true,
+      )
+    }
+    addEvent("object_enrolled", "Enrolled object: ${target.label}")
+    return target
+  }
+
+  fun deleteObjectTarget(targetId: String) {
+    update { state ->
+      val remainingAllowed = state.alarm.allowedObjectTargetIds - targetId
+      val alarm = state.alarm.copy(allowedObjectTargetIds = remainingAllowed)
+      state.copy(
+        objectTargets = state.objectTargets.filterNot { it.id == targetId },
+        alarm = alarm.copy(enabled = alarm.enabled && alarm.hasDismissalTarget()),
+      )
+    }
+  }
+
+  fun toggleObjectAllowed(targetId: String) {
+    update { state ->
+      val current = state.alarm.allowedObjectTargetIds
+      val next = if (current.contains(targetId)) current - targetId else (current + targetId).distinct()
+      val alarm = state.alarm.copy(allowedObjectTargetIds = next)
+      state.copy(alarm = alarm.copy(enabled = alarm.enabled && alarm.hasDismissalTarget()))
     }
   }
 
@@ -140,21 +175,20 @@ class SuperAlarmStore(private val context: Context) {
       return false
     }
 
-    AlarmScheduler.cancelActiveBackups(context, AlarmStorage.readAlarmConfig(context))
-    AlarmStorage.clearPendingLaunch(context)
-    context.stopService(Intent(context, AlarmRingingService::class.java))
-    update { current ->
-      current.copy(
-        runtime = null,
-        attempts = current.attempts.map {
-          if (it.id == runtime.attemptId) it.copy(
-            dismissedAt = Instant.now().toString(),
-            result = "dismissed",
-            dismissalLocationId = location.id,
-          ) else it
-        },
-      )
+    completeDismissal(runtime, location.id, "qr")
+    return true
+  }
+
+  fun dismissWithObject(targetId: String): Boolean {
+    val state = _state.value
+    val runtime = state.runtime ?: return false
+    val target = state.objectTargets.firstOrNull { it.id == targetId }
+    if (target == null || !state.alarm.allowedObjectTargetIds.contains(targetId)) {
+      addEvent("invalid_object", "Object is not enrolled or allowed for dismissal.")
+      return false
     }
+    completeDismissal(runtime, target.id, "object")
+    addEvent("object_dismissal", "Alarm dismissed with ${target.label}.")
     return true
   }
 
@@ -220,6 +254,29 @@ class SuperAlarmStore(private val context: Context) {
     }
   }
 
+  private fun completeDismissal(runtime: AlarmRuntimeState, targetId: String, method: String) {
+    AlarmScheduler.cancelActiveBackups(context, AlarmStorage.readAlarmConfig(context))
+    AlarmStorage.clearPendingLaunch(context)
+    context.stopService(Intent(context, AlarmRingingService::class.java))
+    update { current ->
+      current.copy(
+        runtime = null,
+        attempts = current.attempts.map {
+          if (it.id == runtime.attemptId) {
+            it.copy(
+              dismissedAt = Instant.now().toString(),
+              result = "dismissed",
+              dismissalLocationId = targetId,
+              dismissalMethod = method,
+            )
+          } else {
+            it
+          }
+        },
+      )
+    }
+  }
+
   private fun mutateAlarm(transform: (AlarmConfig) -> AlarmConfig) {
     update { state -> state.copy(alarm = transform(state.alarm).normalized()) }
   }
@@ -275,15 +332,18 @@ class SuperAlarmStore(private val context: Context) {
 }
 
 fun AlarmConfig.normalized(): AlarmConfig = copy(
-  enabled = enabled && allowedLocationIds.isNotEmpty(),
+  enabled = enabled && hasDismissalTarget(),
   repeatDays = repeatDays.distinct().filter { it in 0..6 }.sorted(),
   backupOffsetsSeconds = backupOffsetsSeconds.distinct().filter { it > 0 }.sorted(),
 )
 
+fun AlarmConfig.hasDismissalTarget(): Boolean =
+  allowedLocationIds.isNotEmpty() || allowedObjectTargetIds.isNotEmpty()
+
 fun AlarmConfig.toStoredConfig(): StoredAlarmConfig = StoredAlarmConfig(
   alarmId = id,
   label = label,
-  enabled = enabled && allowedLocationIds.isNotEmpty(),
+  enabled = enabled && hasDismissalTarget(),
   timeMinutesLocal = timeMinutesLocal,
   repeatDays = repeatDays,
   soundId = soundId,

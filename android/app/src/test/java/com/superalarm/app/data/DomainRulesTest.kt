@@ -1,5 +1,7 @@
 package com.superalarm.app.data
 
+import com.superalarm.app.features.objectscan.ObjectEmbeddings
+import com.superalarm.app.features.objectscan.ObjectMatchTracker
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -10,6 +12,43 @@ class DomainRulesTest {
   fun enabledAlarmRequiresAllowedQrSpot() {
     val alarm = AlarmConfig(enabled = true, allowedLocationIds = emptyList()).normalized()
     assertFalse(alarm.enabled)
+  }
+
+  @Test
+  fun enabledAlarmAcceptsAllowedObject() {
+    val alarm = AlarmConfig(enabled = true, allowedObjectTargetIds = listOf("fridge")).normalized()
+    assertTrue(alarm.enabled)
+  }
+
+  @Test
+  fun objectEmbeddingsRoundTripThroughStorageEncoding() {
+    val embedding = byteArrayOf(1, 2, 3, -4)
+    assertTrue(embedding.contentEquals(ObjectEmbeddings.decode(ObjectEmbeddings.encode(embedding))))
+  }
+
+  @Test
+  fun objectMatchRequiresConsecutiveConfidentFrames() {
+    val reference = ObjectEmbeddings.encode(byteArrayOf(10, 20, 30, 40))
+    val target = ObjectTarget(id = "fridge", label = "Fridge", embeddings = listOf(reference))
+    val tracker = ObjectMatchTracker(listOf(target), threshold = 0.9, requiredFrames = 3)
+
+    assertFalse(tracker.accept(reference, frameAt = 100).accepted)
+    assertFalse(tracker.accept(reference, frameAt = 500).accepted)
+    val accepted = tracker.accept(reference, frameAt = 900)
+
+    assertTrue(accepted.accepted)
+    assertEquals("fridge", accepted.targetId)
+    assertEquals(1.0, accepted.similarity, 0.0001)
+  }
+
+  @Test
+  fun objectMatchResetsAfterLongFrameGap() {
+    val reference = ObjectEmbeddings.encode(byteArrayOf(10, 20, 30, 40))
+    val target = ObjectTarget(id = "fridge", label = "Fridge", embeddings = listOf(reference))
+    val tracker = ObjectMatchTracker(listOf(target), threshold = 0.9, requiredFrames = 2)
+
+    assertFalse(tracker.accept(reference, frameAt = 100).accepted)
+    assertFalse(tracker.accept(reference, frameAt = 2_000).accepted)
   }
 
   @Test

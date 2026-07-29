@@ -1,6 +1,8 @@
 # Super Alarm
 
-Native iOS and Android alarm app. Android is Kotlin/Jetpack Compose with a native alarm service for full-screen ringing, backup re-rings, QR dismissal, boot restore, reliability checks, local diagnostics, and analytics export. iOS is SwiftUI with local notifications, Critical Alerts support when approved/provisioned, QR dismissal, in-app alarm audio, and local diagnostics.
+Native iOS and Android alarm app. Android is Kotlin/Jetpack Compose with a native alarm service for full-screen ringing, backup re-rings, QR or on-device object-recognition dismissal, boot restore, reliability checks, local diagnostics, and analytics export. iOS is SwiftUI with local notifications, Critical Alerts support when approved/provisioned, QR dismissal, in-app alarm audio, and local diagnostics.
+
+Android object dismissal guides the user through five close-range views, stores only quantized visual fingerprints, and matches several consecutive camera frames while the alarm rings. Enrollment and recognition remain offline, and QR spots continue to work as a separate dismissal method.
 
 ## Native Development
 

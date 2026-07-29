@@ -1,5 +1,6 @@
 package com.superalarm.app
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -35,6 +36,7 @@ class MainActivity : ComponentActivity() {
     }
   }
 
+  @SuppressLint("RestrictedApi")
   override fun dispatchKeyEvent(event: KeyEvent): Boolean {
     if (AlarmRingingService.isActive() &&
       (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || event.keyCode == KeyEvent.KEYCODE_VOLUME_UP)
