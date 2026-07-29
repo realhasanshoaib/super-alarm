@@ -17,6 +17,8 @@ struct RootView: View {
         .tint(.orange)
         .sheet(item: $store.activeSheet) { route in
             switch route {
+            case .addObject:
+                AddObjectView()
             case .addSpot:
                 AddQrSpotView()
             case .diagnostics:
@@ -40,7 +42,11 @@ struct RootView: View {
 
     private var onboardingBinding: Binding<Bool> {
         Binding(
-            get: { !store.state.hasCompletedOnboarding && store.state.qrLocations.isEmpty },
+            get: {
+                !store.state.hasCompletedOnboarding &&
+                    store.state.qrLocations.isEmpty &&
+                    store.state.objectTargets.isEmpty
+            },
             set: { if !$0 { store.state.hasCompletedOnboarding = true } }
         )
     }
@@ -56,27 +62,35 @@ struct OnboardingView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 24) {
-                Image(systemName: "qrcode.viewfinder")
+                Image(systemName: "viewfinder.circle")
                     .font(.system(size: 72, weight: .regular))
                     .foregroundStyle(.orange)
                     .accessibilityHidden(true)
                 VStack(spacing: 10) {
-                    Text("Choose your first QR spot")
+                    Text("Choose how to dismiss")
                         .font(.largeTitle.bold())
                         .multilineTextAlignment(.center)
-                    Text("Super Alarm dismisses only after you scan a QR code from an allowed wakeup spot.")
+                    Text("Scan a household object with your camera, or create a QR spot. Pick something you must get out of bed to reach.")
                         .font(.body)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
                 Spacer()
                 Button {
-                    store.activeSheet = .addSpot
+                    store.activeSheet = .addObject
                 } label: {
-                    Label("Add QR Spot", systemImage: "plus")
+                    Label("Scan an Object", systemImage: "camera.viewfinder")
                         .frame(maxWidth: .infinity, minHeight: 50)
                 }
                 .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                Button {
+                    store.activeSheet = .addSpot
+                } label: {
+                    Label("Create QR Spot", systemImage: "qrcode")
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                }
+                .buttonStyle(.bordered)
                 .controlSize(.large)
             }
             .padding(28)
@@ -132,12 +146,44 @@ struct AlarmEditorView: View {
                 .padding(.vertical, 6)
             }
 
+            Section("Objects") {
+                if store.state.objectTargets.isEmpty {
+                    ContentUnavailableRow(
+                        systemImage: "camera.viewfinder",
+                        title: "No objects",
+                        message: "Scan a fixed household object for printer-free dismissal."
+                    )
+                } else {
+                    ForEach(store.state.objectTargets) { target in
+                        Toggle(isOn: Binding(
+                            get: { store.state.alarm.allowedObjectTargetIds.contains(target.id) },
+                            set: { store.setObjectAllowed(target, allowed: $0) }
+                        )) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(target.label)
+                                Text("\(target.fingerprints.count) views stored on device")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .onDelete { offsets in
+                        offsets.map { store.state.objectTargets[$0] }.forEach(store.deleteObjectTarget)
+                    }
+                }
+                Button {
+                    store.activeSheet = .addObject
+                } label: {
+                    Label("Scan an Object", systemImage: "camera.viewfinder")
+                }
+            }
+
             Section("QR Spots") {
                 if store.state.qrLocations.isEmpty {
                     ContentUnavailableRow(
                         systemImage: "qrcode",
                         title: "No QR spots",
-                        message: "Add a spot before enabling the alarm."
+                        message: "Create a spot if you want QR dismissal too."
                     )
                 } else {
                     ForEach(store.state.qrLocations) { spot in
@@ -473,9 +519,16 @@ struct ContentUnavailableRow: View {
     }
 }
 
+private enum RingingScanner: String, Identifiable {
+    case object
+    case qr
+
+    var id: String { rawValue }
+}
+
 struct RingingView: View {
     @EnvironmentObject private var store: AppStore
-    @State private var isScannerPresented = false
+    @State private var scanner: RingingScanner?
     @State private var scanMessage: String?
 
     var body: some View {
@@ -492,21 +545,34 @@ struct RingingView: View {
                     .monospacedDigit()
                     .foregroundStyle(.white)
                     .minimumScaleFactor(0.7)
-                Text("Scan to dismiss")
+                Text(dismissalPrompt)
                     .font(.headline)
                     .foregroundStyle(.white.opacity(0.72))
 
-                Button {
-                    isScannerPresented = true
-                } label: {
-                    Image(systemName: "viewfinder")
-                        .font(.system(size: 54, weight: .regular))
-                        .foregroundStyle(.black)
-                        .frame(width: 160, height: 160)
-                        .background(Circle().fill(.orange))
-                        .overlay(Circle().stroke(.white.opacity(0.18), lineWidth: 3))
+                VStack(spacing: 12) {
+                    if !store.allowedObjectTargets.isEmpty {
+                        Button {
+                            scanner = .object
+                        } label: {
+                            Label("Scan Object", systemImage: "camera.viewfinder")
+                                .frame(maxWidth: .infinity, minHeight: 54)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                        .accessibilityHint("Opens the object scanner to dismiss the alarm")
+                    }
+                    if !store.allowedLocations.isEmpty {
+                        Button {
+                            scanner = .qr
+                        } label: {
+                            Label("Scan QR", systemImage: "qrcode.viewfinder")
+                                .frame(maxWidth: .infinity, minHeight: 54)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.large)
+                        .tint(.orange)
+                    }
                 }
-                .accessibilityLabel("Scan QR code to dismiss")
                 .padding(.top, 8)
 
                 if let scanMessage {
@@ -518,20 +584,25 @@ struct RingingView: View {
                 }
 
                 Spacer()
-                allowedSpotsList
+                allowedTargetsList
             }
             .padding(24)
         }
-        .sheet(isPresented: $isScannerPresented) {
-            QrScannerView { payload in
-                switch store.handleScan(payload) {
-                case .valid:
-                    isScannerPresented = false
-                case .invalid(let message):
-                    scanMessage = message
+        .sheet(item: $scanner) { activeScanner in
+            switch activeScanner {
+            case .object:
+                ObjectDismissalView(targets: store.allowedObjectTargets)
+            case .qr:
+                QrScannerView { payload in
+                    switch store.handleScan(payload) {
+                    case .valid:
+                        scanner = nil
+                    case .invalid(let message):
+                        scanMessage = message
+                    }
                 }
+                .ignoresSafeArea()
             }
-            .ignoresSafeArea()
         }
         .overlay {
             if store.dismissedAttempt != nil {
@@ -546,24 +617,30 @@ struct RingingView: View {
         DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .short)
     }
 
-    private var allowedSpotsList: some View {
+    private var dismissalPrompt: String {
+        if !store.allowedObjectTargets.isEmpty && !store.allowedLocations.isEmpty {
+            return "Scan an allowed object or QR spot"
+        }
+        if !store.allowedObjectTargets.isEmpty {
+            return "Find and scan your allowed object"
+        }
+        return "Scan an allowed QR spot"
+    }
+
+    private var allowedTargetsList: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Allowed spots")
+            Text("Allowed targets")
                 .font(.subheadline)
                 .foregroundStyle(.white.opacity(0.76))
                 .padding(.horizontal, 16)
                 .padding(.bottom, 8)
             VStack(spacing: 0) {
+                ForEach(store.allowedObjectTargets) { target in
+                    targetRow(systemImage: "camera.viewfinder", label: target.label)
+                    Divider().overlay(.white.opacity(0.14))
+                }
                 ForEach(store.allowedLocations) { spot in
-                    HStack(spacing: 12) {
-                        Image(systemName: "mappin.and.ellipse")
-                            .foregroundStyle(.white.opacity(0.88))
-                        Text(spot.label)
-                            .foregroundStyle(.white)
-                        Spacer()
-                    }
-                    .frame(minHeight: 50)
-                    .padding(.horizontal, 14)
+                    targetRow(systemImage: "mappin.and.ellipse", label: spot.label)
                     if spot.id != store.allowedLocations.last?.id {
                         Divider().overlay(.white.opacity(0.14))
                     }
@@ -572,6 +649,18 @@ struct RingingView: View {
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private func targetRow(systemImage: String, label: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .foregroundStyle(.white.opacity(0.88))
+            Text(label)
+                .foregroundStyle(.white)
+            Spacer()
+        }
+        .frame(minHeight: 50)
+        .padding(.horizontal, 14)
     }
 }
 

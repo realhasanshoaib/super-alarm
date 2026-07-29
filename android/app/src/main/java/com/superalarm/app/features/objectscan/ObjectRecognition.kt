@@ -18,15 +18,13 @@ data class ObjectMatchProgress(
 class ObjectMatchTracker(
   targets: List<ObjectTarget>,
   private val threshold: Double = DEFAULT_SIMILARITY_THRESHOLD,
-  private val requiredFrames: Int = REQUIRED_MATCHING_FRAMES,
+  private val requiredFrames: Int = REQUIRED_MATCHES,
 ) {
   private val references = targets.map { target ->
     TargetReferences(target, target.embeddings.mapNotNull(ObjectEmbeddings::decode))
   }.filter { it.embeddings.isNotEmpty() }
 
-  private var candidateId: String? = null
-  private var matchingFrames = 0
-  private var lastFrameAt = 0L
+  private val recentMatches = ArrayDeque<TimedMatch>()
 
   fun accept(encodedEmbedding: String, frameAt: Long): ObjectMatchProgress {
     val embedding = ObjectEmbeddings.decode(encodedEmbedding)
@@ -39,14 +37,12 @@ class ObjectMatchTracker(
       .maxByOrNull(TargetScore::similarity)
 
     if (best == null || best.similarity < threshold) {
-      reset()
+      recordMatch(null, frameAt)
       return ObjectMatchProgress(null, null, best?.similarity ?: 0.0, 0, requiredFrames)
     }
 
-    val continuous = candidateId == best.target.id && frameAt - lastFrameAt <= MAX_MATCH_GAP_MILLIS
-    matchingFrames = if (continuous) matchingFrames + 1 else 1
-    candidateId = best.target.id
-    lastFrameAt = frameAt
+    recordMatch(best.target.id, frameAt)
+    val matchingFrames = recentMatches.count { it.targetId == best.target.id }
     return ObjectMatchProgress(
       targetId = best.target.id,
       targetLabel = best.target.label,
@@ -57,18 +53,28 @@ class ObjectMatchTracker(
   }
 
   fun reset() {
-    candidateId = null
-    matchingFrames = 0
-    lastFrameAt = 0L
+    recentMatches.clear()
+  }
+
+  private fun recordMatch(targetId: String?, frameAt: Long) {
+    recentMatches.addLast(TimedMatch(targetId, frameAt))
+    while (
+      recentMatches.size > MATCH_WINDOW_SIZE ||
+      frameAt - recentMatches.first().frameAt > MAX_MATCH_WINDOW_MILLIS
+    ) {
+      recentMatches.removeFirst()
+    }
   }
 
   private data class TargetReferences(val target: ObjectTarget, val embeddings: List<ByteArray>)
   private data class TargetScore(val target: ObjectTarget, val similarity: Double)
+  private data class TimedMatch(val targetId: String?, val frameAt: Long)
 
   companion object {
     const val DEFAULT_SIMILARITY_THRESHOLD = 0.72
-    const val REQUIRED_MATCHING_FRAMES = 4
-    private const val MAX_MATCH_GAP_MILLIS = 1_500L
+    const val REQUIRED_MATCHES = 2
+    private const val MATCH_WINDOW_SIZE = 3
+    private const val MAX_MATCH_WINDOW_MILLIS = 650L
   }
 }
 
@@ -99,5 +105,24 @@ object ObjectEmbeddings {
     }
     if (firstMagnitude == 0.0 || secondMagnitude == 0.0) return 0.0
     return dot / sqrt(firstMagnitude * secondMagnitude)
+  }
+
+  fun selectDiverse(encodedEmbeddings: List<String>, count: Int): List<String> {
+    if (encodedEmbeddings.size <= count) return encodedEmbeddings
+    val decoded = encodedEmbeddings.mapNotNull { encoded ->
+      decode(encoded)?.let { encoded to it }
+    }
+    if (decoded.size <= count) return decoded.map { it.first }
+
+    val selected = mutableListOf(decoded.first())
+    val remaining = decoded.drop(1).toMutableList()
+    while (selected.size < count && remaining.isNotEmpty()) {
+      val next = remaining.minBy { candidate ->
+        selected.maxOf { reference -> cosineSimilarity(candidate.second, reference.second) }
+      }
+      selected += next
+      remaining -= next
+    }
+    return selected.map { it.first }
   }
 }

@@ -33,8 +33,8 @@ class DomainRulesTest {
     val tracker = ObjectMatchTracker(listOf(target), threshold = 0.9, requiredFrames = 3)
 
     assertFalse(tracker.accept(reference, frameAt = 100).accepted)
-    assertFalse(tracker.accept(reference, frameAt = 500).accepted)
-    val accepted = tracker.accept(reference, frameAt = 900)
+    assertFalse(tracker.accept(reference, frameAt = 300).accepted)
+    val accepted = tracker.accept(reference, frameAt = 500)
 
     assertTrue(accepted.accepted)
     assertEquals("fridge", accepted.targetId)
@@ -49,6 +49,37 @@ class DomainRulesTest {
 
     assertFalse(tracker.accept(reference, frameAt = 100).accepted)
     assertFalse(tracker.accept(reference, frameAt = 2_000).accepted)
+  }
+
+  @Test
+  fun objectMatchToleratesOneMissInRollingWindow() {
+    val reference = ObjectEmbeddings.encode(byteArrayOf(100, 20, 5))
+    val mismatch = ObjectEmbeddings.encode(byteArrayOf(5, 100, 20))
+    val target = ObjectTarget(id = "fridge", label = "Fridge", embeddings = listOf(reference))
+    val tracker = ObjectMatchTracker(listOf(target), threshold = 0.9)
+
+    assertFalse(tracker.accept(reference, frameAt = 100).accepted)
+    assertFalse(tracker.accept(mismatch, frameAt = 200).accepted)
+    assertTrue(tracker.accept(reference, frameAt = 300).accepted)
+  }
+
+  @Test
+  fun diverseEnrollmentSelectionKeepsRequestedCount() {
+    val embeddings = listOf(
+      byteArrayOf(100, 0, 0),
+      byteArrayOf(99, 1, 0),
+      byteArrayOf(0, 100, 0),
+      byteArrayOf(0, 99, 1),
+      byteArrayOf(0, 0, 100),
+      byteArrayOf(1, 0, 99),
+    ).map(ObjectEmbeddings::encode)
+
+    val selected = ObjectEmbeddings.selectDiverse(embeddings, count = 3)
+
+    assertEquals(3, selected.size)
+    assertTrue(selected.contains(embeddings.first()))
+    assertTrue(selected.contains(embeddings[2]))
+    assertTrue(selected.contains(embeddings[4]))
   }
 
   @Test

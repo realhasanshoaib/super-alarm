@@ -56,7 +56,7 @@ struct AlarmNotificationService {
         for index in alarm.repeatDays.indices where alarm.repeatDays[index] {
             let content = UNMutableNotificationContent()
             content.title = alarm.label
-            content.body = "Scan an allowed QR spot to dismiss."
+            content.body = "Scan an allowed object or QR spot to dismiss."
             content.categoryIdentifier = "ALARM"
             content.userInfo = ["kind": "live"]
             if health.hasCriticalEntitlement && health.criticalSetting == .enabled {

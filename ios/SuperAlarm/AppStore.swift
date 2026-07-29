@@ -21,6 +21,10 @@ final class AppStore: ObservableObject {
         state.qrLocations.filter { state.alarm.allowedLocationIds.contains($0.id) }
     }
 
+    var allowedObjectTargets: [ObjectTarget] {
+        state.objectTargets.filter { state.alarm.allowedObjectTargetIds.contains($0.id) }
+    }
+
     var nextAlarmSummary: String {
         guard state.alarm.isEnabled else { return "Alarm off" }
         guard let next = notifications.nextTriggerDate(for: state.alarm) else { return "No repeat day selected" }
@@ -49,9 +53,9 @@ final class AppStore: ObservableObject {
     }
 
     func setEnabled(_ enabled: Bool) {
-        if enabled && state.alarm.allowedLocationIds.isEmpty {
+        if enabled && !hasDismissalTarget {
             haptics.warning()
-            alertMessage = "Add at least one allowed QR spot before enabling the alarm."
+            alertMessage = "Add at least one allowed object or QR spot before enabling the alarm."
             return
         }
         state.alarm.isEnabled = enabled
@@ -101,9 +105,9 @@ final class AppStore: ObservableObject {
     func deleteQrSpot(_ spot: QrLocation) {
         state.qrLocations.removeAll { $0.id == spot.id }
         state.alarm.allowedLocationIds.removeAll { $0 == spot.id }
-        if state.alarm.allowedLocationIds.isEmpty && state.alarm.isEnabled {
+        if !hasDismissalTarget && state.alarm.isEnabled {
             state.alarm.isEnabled = false
-            log(.warning, "Alarm disabled because the last allowed QR spot was deleted")
+            log(.warning, "Alarm disabled because the last dismissal target was deleted")
         }
         persistAndReschedule()
     }
@@ -115,9 +119,54 @@ final class AppStore: ObservableObject {
             }
         } else {
             state.alarm.allowedLocationIds.removeAll { $0 == spot.id }
-            if state.alarm.allowedLocationIds.isEmpty && state.alarm.isEnabled {
+            if !hasDismissalTarget && state.alarm.isEnabled {
                 state.alarm.isEnabled = false
-                log(.warning, "Alarm disabled because no QR spots are allowed")
+                log(.warning, "Alarm disabled because no dismissal targets are allowed")
+            }
+        }
+        persistAndReschedule()
+    }
+
+    func addObjectTarget(label: String, fingerprints: [String]) {
+        let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !fingerprints.isEmpty else { return }
+        let id = UUID()
+        let target = ObjectTarget(
+            id: id,
+            label: trimmed,
+            fingerprints: fingerprints,
+            matchDistanceThreshold: ObjectFeaturePrintCodec.matchThreshold(for: fingerprints),
+            visionRevision: ObjectFeaturePrintCodec.revision,
+            createdAt: Date()
+        )
+        state.objectTargets.append(target)
+        state.alarm.allowedObjectTargetIds.append(id)
+        state.hasCompletedOnboarding = true
+        log(.info, "Enrolled object: \(trimmed)")
+        haptics.success()
+        persistAndReschedule()
+    }
+
+    func deleteObjectTarget(_ target: ObjectTarget) {
+        state.objectTargets.removeAll { $0.id == target.id }
+        state.alarm.allowedObjectTargetIds.removeAll { $0 == target.id }
+        if !hasDismissalTarget && state.alarm.isEnabled {
+            state.alarm.isEnabled = false
+            log(.warning, "Alarm disabled because the last dismissal target was deleted")
+        }
+        persistAndReschedule()
+    }
+
+    func setObjectAllowed(_ target: ObjectTarget, allowed: Bool) {
+        if allowed {
+            if !state.alarm.allowedObjectTargetIds.contains(target.id) {
+                state.alarm.allowedObjectTargetIds.append(target.id)
+            }
+        } else {
+            state.alarm.allowedObjectTargetIds.removeAll { $0 == target.id }
+            if !hasDismissalTarget && state.alarm.isEnabled {
+                state.alarm.isEnabled = false
+                log(.warning, "Alarm disabled because no dismissal targets are allowed")
             }
         }
         persistAndReschedule()
@@ -152,7 +201,8 @@ final class AppStore: ObservableObject {
             dismissedAt: nil,
             result: .ringing,
             backupStage: nil,
-            dismissalLocationId: nil
+            dismissalLocationId: nil,
+            dismissalMethod: nil
         )
         state.attempts.insert(attempt, at: 0)
         state.runtime = AlarmRuntimeState(attemptId: attempt.id, phase: .ringing, ringingStartedAt: Date(), kind: kind)
@@ -175,16 +225,26 @@ final class AppStore: ObservableObject {
             haptics.warning()
             return .invalid("\(spot.label) is enrolled but not allowed for this alarm.")
         }
-        dismissAlarm(with: spot)
+        completeDismissal(targetId: spot.id, targetLabel: spot.label, method: "qr")
         return .valid(spot)
     }
 
-    func dismissAlarm(with spot: QrLocation) {
+    func dismissAlarm(with target: ObjectTarget) {
+        guard state.alarm.allowedObjectTargetIds.contains(target.id) else {
+            log(.warning, "Rejected disallowed object: \(target.label)")
+            haptics.warning()
+            return
+        }
+        completeDismissal(targetId: target.id, targetLabel: target.label, method: "object")
+    }
+
+    private func completeDismissal(targetId: UUID, targetLabel: String, method: String) {
         guard let runtime = state.runtime else { return }
         if let index = state.attempts.firstIndex(where: { $0.id == runtime.attemptId }) {
             state.attempts[index].dismissedAt = Date()
             state.attempts[index].result = .dismissed
-            state.attempts[index].dismissalLocationId = spot.id
+            state.attempts[index].dismissalLocationId = targetId
+            state.attempts[index].dismissalMethod = method
             dismissedAttempt = state.attempts[index]
         }
         state.runtime = AlarmRuntimeState(
@@ -193,7 +253,7 @@ final class AppStore: ObservableObject {
             ringingStartedAt: runtime.ringingStartedAt,
             kind: runtime.kind
         )
-        log(.info, "Alarm dismissed at \(spot.label)")
+        log(.info, "Alarm dismissed with \(targetLabel)")
         haptics.success()
         audio.stop()
         save()
@@ -223,6 +283,10 @@ final class AppStore: ObservableObject {
 
     private func spot(for payload: String) -> QrLocation? {
         state.qrLocations.first { $0.payload == payload }
+    }
+
+    private var hasDismissalTarget: Bool {
+        !state.alarm.allowedLocationIds.isEmpty || !state.alarm.allowedObjectTargetIds.isEmpty
     }
 
     private func recoverInterruptedRuntimeIfNeeded() {
@@ -264,12 +328,14 @@ final class AppStore: ObservableObject {
 }
 
 enum SheetRoute: Identifiable, Equatable {
+    case addObject
     case addSpot
     case diagnostics
     case spot(QrLocation)
 
     var id: String {
         switch self {
+        case .addObject: return "addObject"
         case .addSpot: return "addSpot"
         case .diagnostics: return "diagnostics"
         case .spot(let spot): return "spot-\(spot.id.uuidString)"

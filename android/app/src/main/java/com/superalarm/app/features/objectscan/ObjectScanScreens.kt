@@ -7,18 +7,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Camera
-import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -26,6 +22,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -34,16 +31,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.superalarm.app.data.ObjectTarget
 
 private val enrollmentSteps = listOf(
-  "Stand about an arm's length away for a straight-on view",
-  "Move a little to the left",
-  "Move a little to the right",
-  "Lower the phone slightly",
+  "Center the object inside the ring",
+  "Move slowly to the left",
+  "Sweep slowly to the right",
+  "Raise the phone a little",
+  "Lower the phone a little",
   "Move closer to a distinctive detail",
+  "Ease back to show the whole object",
+  "Hold steady to finish",
 )
 
 @Composable
@@ -56,13 +58,35 @@ fun ObjectEnrollmentScreen(
   var capturedEmbeddings by remember { mutableStateOf(emptyList<String>()) }
   var lastCaptureAt by remember { mutableLongStateOf(0L) }
   var error by remember { mutableStateOf<String?>(null) }
+  val haptics = LocalHapticFeedback.current
   val step = capturedEmbeddings.size.coerceAtMost(enrollmentSteps.lastIndex)
   val frameEmbedding = currentFrame?.embedding
-  val distinctView = frameEmbedding != null && capturedEmbeddings.lastOrNull()?.let {
-    ObjectEmbeddings.cosineSimilarity(it, frameEmbedding) < MAX_ENROLLMENT_VIEW_SIMILARITY
-  } != false
-  val readyFrame = currentFrame?.takeIf {
-    it.capturedAt > lastCaptureAt && it.embedding != null && it.issue == null && distinctView
+  val viewSimilarity = frameEmbedding?.let { embedding ->
+    capturedEmbeddings.lastOrNull()?.let { ObjectEmbeddings.cosineSimilarity(it, embedding) }
+  }
+  val distinctView = viewSimilarity == null || viewSimilarity < MAX_ENROLLMENT_VIEW_SIMILARITY
+
+  LaunchedEffect(currentFrame?.capturedAt) {
+    val sample = currentFrame ?: return@LaunchedEffect
+    val embedding = sample.embedding ?: return@LaunchedEffect
+    val captureDelay = sample.capturedAt - lastCaptureAt
+    if (
+      sample.issue != null ||
+      captureDelay < AUTO_CAPTURE_INTERVAL_MILLIS ||
+      (!distinctView && captureDelay < AUTO_CAPTURE_FALLBACK_MILLIS)
+    ) {
+      return@LaunchedEffect
+    }
+
+    val next = capturedEmbeddings + embedding
+    lastCaptureAt = sample.capturedAt
+    currentFrame = null
+    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+    if (next.size == enrollmentSteps.size) {
+      onComplete(ObjectEmbeddings.selectDiverse(next, SAVED_ENROLLMENT_VIEWS))
+    } else {
+      capturedEmbeddings = next
+    }
   }
 
   Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -71,37 +95,19 @@ fun ObjectEnrollmentScreen(
       onFrame = { currentFrame = it },
       onError = { error = it },
     )
-    ScanGuide(color = if (readyFrame != null) Color(0xFF6EE7B7) else Color.White)
+    ScanGuide(
+      color = if (frameEmbedding != null && currentFrame?.issue == null) Color(0xFF6EE7B7) else Color.White,
+      progress = capturedEmbeddings.size / enrollmentSteps.size.toFloat(),
+    )
     ScanTopBar(title = "Scan $label", onClose = onCancel)
     ScanPanel(
       modifier = Modifier.align(Alignment.BottomCenter),
-      title = "View ${step + 1} of ${enrollmentSteps.size}",
+      title = if (capturedEmbeddings.isEmpty()) "Look at $label" else "Keep moving slowly",
       instruction = error
         ?: currentFrame?.issue?.message
-        ?: if (frameEmbedding != null && !distinctView) "Move farther toward the requested angle" else enrollmentSteps[step],
+        ?: if (frameEmbedding != null && !distinctView) "Move a little farther in that direction" else enrollmentSteps[step],
       progress = capturedEmbeddings.size / enrollmentSteps.size.toFloat(),
-    ) {
-      Button(
-        enabled = readyFrame != null && error == null,
-        onClick = {
-          val sample = readyFrame ?: return@Button
-          val embedding = sample.embedding ?: return@Button
-          val next = capturedEmbeddings + embedding
-          if (next.size == enrollmentSteps.size) {
-            onComplete(next)
-          } else {
-            capturedEmbeddings = next
-            lastCaptureAt = sample.capturedAt
-            currentFrame = null
-          }
-        },
-        modifier = Modifier.fillMaxWidth().height(54.dp),
-      ) {
-        Icon(Icons.Default.Camera, null)
-        Spacer(Modifier.size(8.dp))
-        Text(if (step == enrollmentSteps.lastIndex) "Save object" else "Capture view")
-      }
-    }
+    )
   }
 }
 
@@ -113,7 +119,7 @@ fun ObjectDismissalScreen(
 ) {
   val tracker = remember(targets) { ObjectMatchTracker(targets) }
   var progress by remember {
-    mutableStateOf(ObjectMatchProgress(null, null, 0.0, 0, ObjectMatchTracker.REQUIRED_MATCHING_FRAMES))
+    mutableStateOf(ObjectMatchProgress(null, null, 0.0, 0, ObjectMatchTracker.REQUIRED_MATCHES))
   }
   var issue by remember { mutableStateOf<ObjectFrameIssue?>(null) }
   var error by remember { mutableStateOf<String?>(null) }
@@ -138,7 +144,10 @@ fun ObjectDismissalScreen(
       },
       onError = { error = it },
     )
-    ScanGuide(color = if (progress.matchingFrames > 0) Color(0xFF6EE7B7) else Color.White)
+    ScanGuide(
+      color = if (progress.matchingFrames > 0) Color(0xFF6EE7B7) else Color.White,
+      progress = progress.matchingFrames / progress.requiredFrames.toFloat(),
+    )
     ScanTopBar(title = "Find your object", onClose = onCancel)
     ScanPanel(
       modifier = Modifier.align(Alignment.BottomCenter),
@@ -155,16 +164,26 @@ fun ObjectDismissalScreen(
   }
 }
 
-private const val MAX_ENROLLMENT_VIEW_SIMILARITY = 0.995
+private const val MAX_ENROLLMENT_VIEW_SIMILARITY = 0.998
+private const val AUTO_CAPTURE_INTERVAL_MILLIS = 325L
+private const val AUTO_CAPTURE_FALLBACK_MILLIS = 900L
+private const val SAVED_ENROLLMENT_VIEWS = 5
 
 @Composable
-private fun ScanGuide(color: Color) {
+private fun ScanGuide(color: Color, progress: Float) {
   Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    CircularProgressIndicator(
+      progress = { progress.coerceIn(0f, 1f) },
+      modifier = Modifier.fillMaxWidth(0.79f).aspectRatio(1f),
+      color = Color(0xFF6EE7B7),
+      trackColor = Color.White.copy(alpha = 0.28f),
+      strokeWidth = 7.dp,
+    )
     Box(
       Modifier
-        .fillMaxWidth(0.76f)
+        .fillMaxWidth(0.74f)
         .aspectRatio(1f)
-        .border(BorderStroke(3.dp, color), RoundedCornerShape(24.dp)),
+        .border(BorderStroke(2.dp, color), RoundedCornerShape(96.dp)),
     )
   }
 }

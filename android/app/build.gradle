@@ -14,8 +14,8 @@ android {
         applicationId 'com.superalarm.app'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 7
-        versionName "1.1.0"
+        versionCode 8
+        versionName "1.2.0"
     }
     signingConfigs {
         release {
