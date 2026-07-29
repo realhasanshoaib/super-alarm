@@ -32,7 +32,7 @@ android:
   package: com.superalarm.app
   track: production
   api_track: production
-  status: production_review
+  status: production_published
   uploaded_tracks:
     - internal
     - beta
@@ -47,12 +47,12 @@ android:
   version_name: 1.0.0
   play: env:GOOGLE_APPLICATION_CREDENTIALS
   data_safety: ref:docs/play-data-safety.csv
-  result: "Version 6 removes Device Administrator uninstall protection. The signed AAB matches Play's registered upload certificate, and gplay 0.8.0 preflight reports zero errors, four expected alarm/build-metadata warnings, and four informational findings. Six fresh 1080x1920 RGB screenshots replaced the seven stale Play screenshots. Emulator QA verified launch, QR enrollment, time editing, QR display, Health without uninstall protection, foreground alarm notification, ringing UI, and test dismissal. The Media playback foreground-service declaration is Actioned with no policy issue. On 29 July 2026, Google Play edit 14311005444087967693 promoted versionCode 6 from beta/open testing to production at 100% with status completed. Fresh Publisher API snapshots show production on versionCode 6. Managed publishing is enabled, and Play Console currently lists the full rollout under Changes in review; the public revision remains unpublished until Google approves it and the managed change is published."
+  result: "Version 6 removes Device Administrator uninstall protection. The signed AAB matches Play's registered upload certificate, and gplay 0.8.0 preflight reports zero errors, four expected alarm/build-metadata warnings, and four informational findings. Six fresh 1080x1920 RGB screenshots replaced the seven stale Play screenshots. Emulator QA verified launch, QR enrollment, time editing, QR display, Health without uninstall protection, foreground alarm notification, ringing UI, and test dismissal. The Media playback foreground-service declaration is Actioned with no policy issue. On 29 July 2026, Google Play edit 14311005444087967693 promoted versionCode 6 from beta/open testing to production at 100% with status completed. Google approved the rollout, the managed publishing action completed, Play Console reports Last published on 29 July 2026 with an empty ready-to-publish queue, and fresh Publisher API state confirms production release 1.0.0 (6) policy-safe is completed."
   foreground_service_video: store/media/google-play/foreground-service-media-playback-demo-vc6-20260711.mp4
   foreground_service_video_sha256: 2caf796839fdefe943b74788d109572b33f3e496a4c886f788bd511b5db859fc
   foreground_service_video_url: https://youtube.com/shorts/EZVvp7KBpHg?feature=share
   foreground_service_declaration: actioned
-  next_action: "Wait for Google Play to approve the production rollout, publish the managed change, verify versionCode 6 is publicly serving, then complete physical-device lock-screen alarm, camera QR scanning, audio, and vibration QA."
+  next_action: "Allow Play Store propagation, install the production release on a clean physical device, and verify the new UI, lock-screen alarm, camera QR scanning, audio, and vibration."
 review:
   demo: null
   apple_notes: "No account required. Create a QR spot, allow notifications and camera, enable the alarm, then use Test Alarm. On iOS, Critical Alerts are requested only when the signed entitlement is present; otherwise the app uses standard local notifications and opens the QR dismissal flow when the notification is tapped."
@@ -77,6 +77,6 @@ blockers:
   - "All iOS screenshots are stale and have been removed. Fresh iPhone screenshots are required before the next iOS submission."
 risks:
   - "Native migration real-device QA is still needed for lock-screen/full-screen alarm behavior, camera QR scanning, notification permissions, haptics/vibration, and accessibility."
-  - "Android production points to versionCode 6 in the Publisher API, but managed publishing and Google Play review mean the public rollout is not live until the approved change is explicitly published."
+  - "Android production versionCode 6 is published, but Play Store device propagation can take up to an hour or occasionally longer."
   - "Open testing and production point to versionCode 6. Internal testing remains on versionCode 5 and must not be promoted over the newer release."
   - "iOS uses scheduled local notifications, not Android-style full-screen exact alarms; Critical Alerts improve notification delivery but do not create an Android-style background ringing service."
