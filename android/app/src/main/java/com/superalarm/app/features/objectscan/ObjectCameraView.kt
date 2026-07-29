@@ -2,6 +2,7 @@ package com.superalarm.app.features.objectscan
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Matrix
 import android.graphics.RectF
 import android.os.SystemClock
 import androidx.camera.core.CameraSelector
@@ -28,6 +29,7 @@ import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.core.ImageProcessingOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.imageembedder.ImageEmbedder
+import java.io.ByteArrayOutputStream
 import java.io.Closeable
 import java.util.TreeMap
 import java.util.concurrent.Executors
@@ -42,11 +44,14 @@ data class ObjectFrameSample(
   val embedding: String?,
   val issue: ObjectFrameIssue?,
   val capturedAt: Long,
+  val thumbnailJpeg: ByteArray? = null,
+  val thumbnailQualityScore: Double = 0.0,
 )
 
 @Composable
 fun ObjectCameraView(
   modifier: Modifier = Modifier,
+  captureThumbnail: Boolean = false,
   onFrame: (ObjectFrameSample) -> Unit,
   onError: (String) -> Unit,
 ) {
@@ -54,9 +59,10 @@ fun ObjectCameraView(
   val lifecycleOwner = LocalLifecycleOwner.current
   val currentOnFrame = rememberUpdatedState(onFrame)
   val currentOnError = rememberUpdatedState(onError)
-  val controller = remember(context, lifecycleOwner) {
+  val controller = remember(context, lifecycleOwner, captureThumbnail) {
     ObjectCameraController(
       context = context,
+      captureThumbnail = captureThumbnail,
       onFrame = { sample ->
         ContextCompat.getMainExecutor(context).execute { currentOnFrame.value(sample) }
       },
@@ -85,11 +91,12 @@ fun ObjectCameraView(
 
 private class ObjectCameraController(
   private val context: Context,
+  captureThumbnail: Boolean,
   onFrame: (ObjectFrameSample) -> Unit,
   private val onError: (String) -> Unit,
 ) : Closeable {
   private val executor = Executors.newSingleThreadExecutor()
-  private val analyzer = ObjectFrameAnalyzer(context, onFrame, onError)
+  private val analyzer = ObjectFrameAnalyzer(context, captureThumbnail, onFrame, onError)
   @Volatile private var closed = false
   private var provider: ProcessCameraProvider? = null
   private var preview: Preview? = null
@@ -149,6 +156,7 @@ private class ObjectCameraController(
 
 private class ObjectFrameAnalyzer(
   private val context: Context,
+  private val captureThumbnail: Boolean,
   private val onFrame: (ObjectFrameSample) -> Unit,
   private val onError: (String) -> Unit,
 ) : ImageAnalysis.Analyzer, Closeable {
@@ -184,15 +192,16 @@ private class ObjectFrameAnalyzer(
         viewportWidth = viewportWidth,
         viewportHeight = viewportHeight,
       )
-      val issue = image.frameIssue(guideRegion)
-      if (issue != null) {
-        ObjectFrameSample(embedding = null, issue = issue, capturedAt = now)
+      val quality = image.frameQuality(guideRegion)
+      if (quality.issue != null) {
+        ObjectFrameSample(embedding = null, issue = quality.issue, capturedAt = now)
       } else {
         imageEmbedder().embedAsync(
           bitmap = image.toBitmap(),
           guideRegion = guideRegion,
           rotationDegrees = image.imageInfo.rotationDegrees,
           capturedAt = now,
+          qualityScore = quality.score,
         )
         null
       }
@@ -207,7 +216,7 @@ private class ObjectFrameAnalyzer(
   }
 
   private fun imageEmbedder(): ObjectImageEmbedder =
-    engine ?: ObjectImageEmbedder(context, onFrame, onError).also { engine = it }
+    engine ?: ObjectImageEmbedder(context, captureThumbnail, onFrame, onError).also { engine = it }
 
   companion object {
     private const val FRAME_INTERVAL_MILLIS = 100L
@@ -216,6 +225,7 @@ private class ObjectFrameAnalyzer(
 
 private class ObjectImageEmbedder(
   context: Context,
+  private val captureThumbnail: Boolean,
   private val onFrame: (ObjectFrameSample) -> Unit,
   private val onError: (String) -> Unit,
 ) : Closeable {
@@ -230,12 +240,15 @@ private class ObjectImageEmbedder(
         outputImage.close()
         val capturedAt = result.timestampMs()
         val embedding = result.embeddingResult().embeddings().first().quantizedEmbedding()
+        val pendingFrame = synchronized(pendingFrames) { pendingFrames[capturedAt] }
         releaseFramesThrough(capturedAt)
         onFrame(
           ObjectFrameSample(
             embedding = ObjectEmbeddings.encode(embedding),
             issue = null,
             capturedAt = capturedAt,
+            thumbnailJpeg = pendingFrame?.thumbnailJpeg,
+            thumbnailQualityScore = pendingFrame?.qualityScore ?: 0.0,
           ),
         )
       }
@@ -245,11 +258,27 @@ private class ObjectImageEmbedder(
       }
       .build(),
   )
+  private var lastThumbnailAt = 0L
 
-  fun embedAsync(bitmap: Bitmap, guideRegion: RectF, rotationDegrees: Int, capturedAt: Long) {
+  fun embedAsync(
+    bitmap: Bitmap,
+    guideRegion: RectF,
+    rotationDegrees: Int,
+    capturedAt: Long,
+    qualityScore: Double,
+  ) {
     val image = BitmapImageBuilder(bitmap).build()
+    val thumbnailJpeg = if (
+      captureThumbnail &&
+      capturedAt - lastThumbnailAt >= THUMBNAIL_CANDIDATE_INTERVAL_MILLIS
+    ) {
+      lastThumbnailAt = capturedAt
+      bitmap.objectThumbnail(guideRegion, rotationDegrees)
+    } else {
+      null
+    }
     synchronized(pendingFrames) {
-      pendingFrames[capturedAt] = PendingFrame(image, bitmap)
+      pendingFrames[capturedAt] = PendingFrame(image, bitmap, thumbnailJpeg, qualityScore)
     }
     val processing = ImageProcessingOptions.builder()
       .setRegionOfInterest(guideRegion)
@@ -279,7 +308,12 @@ private class ObjectImageEmbedder(
     released.forEach(PendingFrame::close)
   }
 
-  private data class PendingFrame(val image: MPImage, val bitmap: Bitmap) {
+  private data class PendingFrame(
+    val image: MPImage,
+    val bitmap: Bitmap,
+    val thumbnailJpeg: ByteArray?,
+    val qualityScore: Double,
+  ) {
     fun close() {
       image.close()
       bitmap.recycle()
@@ -288,8 +322,45 @@ private class ObjectImageEmbedder(
 
   companion object {
     private const val MODEL_ASSET = "mobilenet_v3_large.tflite"
+    private const val THUMBNAIL_CANDIDATE_INTERVAL_MILLIS = 250L
   }
 }
+
+private fun Bitmap.objectThumbnail(guideRegion: RectF, rotationDegrees: Int): ByteArray? =
+  runCatching {
+    val left = (guideRegion.left * width).toInt().coerceIn(0, width - 1)
+    val top = (guideRegion.top * height).toInt().coerceIn(0, height - 1)
+    val right = (guideRegion.right * width).toInt().coerceIn(left + 1, width)
+    val bottom = (guideRegion.bottom * height).toInt().coerceIn(top + 1, height)
+    val cropped = Bitmap.createBitmap(this, left, top, right - left, bottom - top)
+    val rotated = if (rotationDegrees == 0) {
+      cropped
+    } else {
+      Bitmap.createBitmap(
+        cropped,
+        0,
+        0,
+        cropped.width,
+        cropped.height,
+        Matrix().apply { postRotate(rotationDegrees.toFloat()) },
+        true,
+      )
+    }
+    if (rotated !== cropped && cropped !== this) cropped.recycle()
+    val scaled = Bitmap.createScaledBitmap(
+      rotated,
+      OBJECT_THUMBNAIL_SIZE,
+      OBJECT_THUMBNAIL_SIZE,
+      true,
+    )
+    if (scaled !== rotated && rotated !== this) rotated.recycle()
+    val jpeg = ByteArrayOutputStream().use { output ->
+      scaled.compress(Bitmap.CompressFormat.JPEG, OBJECT_THUMBNAIL_QUALITY, output)
+      output.toByteArray()
+    }
+    if (scaled !== this) scaled.recycle()
+    jpeg
+  }.getOrNull()
 
 private fun centerGuideRegion(
   imageWidth: Int,
@@ -314,7 +385,12 @@ private fun centerGuideRegion(
   return RectF(horizontalInset, verticalInset, 1f - horizontalInset, 1f - verticalInset)
 }
 
-private fun ImageProxy.frameIssue(guideRegion: RectF): ObjectFrameIssue? {
+private data class ObjectFrameQuality(
+  val issue: ObjectFrameIssue?,
+  val score: Double,
+)
+
+private fun ImageProxy.frameQuality(guideRegion: RectF): ObjectFrameQuality {
   val plane = planes.first()
   val buffer = plane.buffer.duplicate()
   val left = (guideRegion.left * width).toInt()
@@ -357,14 +433,22 @@ private fun ImageProxy.frameIssue(guideRegion: RectF): ObjectFrameIssue? {
 
   val averageLuminance = luminanceTotal.toDouble() / samples
   val averageEdge = if (edgeSamples == 0) 0.0 else edgeTotal.toDouble() / edgeSamples
-  return when {
+  val issue = when {
     averageLuminance < 38.0 -> ObjectFrameIssue.TooDark
     averageLuminance > 220.0 -> ObjectFrameIssue.TooBright
     averageEdge < 2.0 -> ObjectFrameIssue.Blurry
     else -> null
   }
+  val exposureScore = (1.0 - kotlin.math.abs(averageLuminance - 128.0) / 128.0)
+    .coerceIn(0.0, 1.0)
+  return ObjectFrameQuality(
+    issue = issue,
+    score = averageEdge * (0.65 + 0.35 * exposureScore),
+  )
 }
 
 private const val GUIDE_VIEW_WIDTH_FRACTION = 0.74f
 private const val FALLBACK_GUIDE_FRACTION = 0.76f
 private const val QUALITY_GRID_SIZE = 64
+private const val OBJECT_THUMBNAIL_SIZE = 320
+private const val OBJECT_THUMBNAIL_QUALITY = 84

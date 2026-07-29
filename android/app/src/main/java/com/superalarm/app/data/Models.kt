@@ -28,6 +28,7 @@ data class ObjectTarget(
   val id: String = UUID.randomUUID().toString(),
   val label: String,
   val embeddings: List<String>,
+  val thumbnailFileName: String? = null,
 )
 
 data class AlarmAttempt(
@@ -136,12 +137,14 @@ fun ObjectTarget.toJson(): JSONObject = JSONObject().apply {
   put("id", id)
   put("label", label)
   put("embeddings", JSONArray(embeddings))
+  put("thumbnailFileName", thumbnailFileName ?: JSONObject.NULL)
 }
 
 fun objectTargetFromJson(json: JSONObject): ObjectTarget = ObjectTarget(
   id = json.optString("id", UUID.randomUUID().toString()),
   label = json.optString("label", "Wake object"),
   embeddings = json.optJSONArray("embeddings").toStringList(),
+  thumbnailFileName = json.optNullableString("thumbnailFileName"),
 )
 
 fun AlarmAttempt.toJson(): JSONObject = JSONObject().apply {

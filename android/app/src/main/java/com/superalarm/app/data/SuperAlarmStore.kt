@@ -22,7 +22,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONObject
+import java.io.File
 import java.time.Instant
+import java.util.UUID
 
 class SuperAlarmStore(private val context: Context) {
   private val prefs = context.getSharedPreferences("super_alarm_native_state", Context.MODE_PRIVATE)
@@ -100,9 +102,19 @@ class SuperAlarmStore(private val context: Context) {
     }
   }
 
-  fun addObjectTarget(label: String, embeddings: List<String>): ObjectTarget {
+  fun addObjectTarget(
+    label: String,
+    embeddings: List<String>,
+    thumbnailJpeg: ByteArray?,
+  ): ObjectTarget {
     require(embeddings.isNotEmpty())
-    val target = ObjectTarget(label = label.ifBlank { "Wake object" }, embeddings = embeddings)
+    val id = UUID.randomUUID().toString()
+    val target = ObjectTarget(
+      id = id,
+      label = label.ifBlank { "Wake object" },
+      embeddings = embeddings,
+      thumbnailFileName = saveObjectThumbnail(thumbnailJpeg),
+    )
     update { state ->
       state.copy(
         objectTargets = state.objectTargets + target,
@@ -116,7 +128,35 @@ class SuperAlarmStore(private val context: Context) {
     return target
   }
 
+  fun updateObjectTarget(
+    targetId: String,
+    embeddings: List<String>,
+    thumbnailJpeg: ByteArray?,
+  ) {
+    require(embeddings.isNotEmpty())
+    val current = _state.value.objectTargets.firstOrNull { it.id == targetId } ?: return
+    val nextThumbnail = saveObjectThumbnail(thumbnailJpeg) ?: current.thumbnailFileName
+    update { state ->
+      state.copy(
+        objectTargets = state.objectTargets.map { target ->
+          if (target.id == targetId) {
+            target.copy(embeddings = embeddings, thumbnailFileName = nextThumbnail)
+          } else {
+            target
+          }
+        },
+      )
+    }
+    if (nextThumbnail != current.thumbnailFileName) {
+      current.thumbnailFileName?.let(::deleteObjectThumbnail)
+    }
+    addEvent("object_rescanned", "Updated object scan: ${current.label}")
+  }
+
   fun deleteObjectTarget(targetId: String) {
+    val thumbnailFileName = _state.value.objectTargets
+      .firstOrNull { it.id == targetId }
+      ?.thumbnailFileName
     update { state ->
       val remainingAllowed = state.alarm.allowedObjectTargetIds - targetId
       val alarm = state.alarm.copy(allowedObjectTargetIds = remainingAllowed)
@@ -125,6 +165,7 @@ class SuperAlarmStore(private val context: Context) {
         alarm = alarm.copy(enabled = alarm.enabled && alarm.hasDismissalTarget()),
       )
     }
+    thumbnailFileName?.let(::deleteObjectThumbnail)
   }
 
   fun toggleObjectAllowed(targetId: String) {
@@ -193,10 +234,17 @@ class SuperAlarmStore(private val context: Context) {
   }
 
   fun dismissWithoutScanForTestOnly() {
-    if (_state.value.runtime?.kind != "test") return
+    val runtime = _state.value.runtime?.takeIf { it.kind == "test" } ?: return
     context.stopService(Intent(context, AlarmRingingService::class.java))
     AlarmStorage.clearPendingLaunch(context)
-    update { it.copy(runtime = null) }
+    update { state ->
+      state.copy(
+        runtime = null,
+        attempts = state.attempts.map { attempt ->
+          if (attempt.id == runtime.attemptId) attempt.copy(result = "interrupted") else attempt
+        },
+      )
+    }
   }
 
   fun capabilities(): ReliabilityChecklistState {
@@ -212,6 +260,11 @@ class SuperAlarmStore(private val context: Context) {
   }
 
   fun cameraGranted(): Boolean = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+
+  fun objectThumbnailFile(target: ObjectTarget): File? =
+    target.thumbnailFileName
+      ?.let(::objectThumbnailFile)
+      ?.takeIf(File::isFile)
 
   fun openExactAlarmSettings() = openSettings(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
 
@@ -321,6 +374,26 @@ class SuperAlarmStore(private val context: Context) {
     prefs.edit().putString(KEY_STATE, state.toJson().toString()).apply()
   }
 
+  private fun saveObjectThumbnail(jpeg: ByteArray?): String? {
+    val bytes = jpeg?.takeIf { it.isNotEmpty() } ?: return null
+    val directory = File(context.filesDir, OBJECT_THUMBNAIL_DIRECTORY)
+    if (!directory.exists() && !directory.mkdirs()) return null
+    val fileName = "${UUID.randomUUID()}.jpg"
+    return runCatching {
+      File(directory, fileName).writeBytes(bytes)
+      fileName
+    }.getOrNull()
+  }
+
+  private fun objectThumbnailFile(fileName: String): File? {
+    if (!OBJECT_THUMBNAIL_FILE.matches(fileName)) return null
+    return File(File(context.filesDir, OBJECT_THUMBNAIL_DIRECTORY), fileName)
+  }
+
+  private fun deleteObjectThumbnail(fileName: String) {
+    objectThumbnailFile(fileName)?.delete()
+  }
+
   private fun openSettings(intent: Intent) {
     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     context.startActivity(intent)
@@ -328,6 +401,8 @@ class SuperAlarmStore(private val context: Context) {
 
   companion object {
     private const val KEY_STATE = "state"
+    private const val OBJECT_THUMBNAIL_DIRECTORY = "object-thumbnails"
+    private val OBJECT_THUMBNAIL_FILE = Regex("[0-9a-f-]{36}\\.jpg")
   }
 }
 

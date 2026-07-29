@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -78,6 +77,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.superalarm.app.BuildConfig
 import com.superalarm.app.data.AlarmConfig
+import com.superalarm.app.data.AlarmAttempt
 import com.superalarm.app.data.AppState
 import com.superalarm.app.data.alarmWaitMinutes
 import com.superalarm.app.data.sleepWakeTimeMinutes
@@ -85,10 +85,19 @@ import com.superalarm.app.data.SuperAlarmStore
 import com.superalarm.app.features.objectscan.ObjectEnrollmentScreen
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 private enum class Tab { Alarm, Dismissal, Health }
+
+private data class EnrollmentRequest(
+  val label: String,
+  val targetId: String? = null,
+)
 
 @Composable
 fun SuperAlarmApp(store: SuperAlarmStore) {
@@ -111,47 +120,53 @@ fun SuperAlarmApp(store: SuperAlarmStore) {
 private fun SuperAlarmRoot(store: SuperAlarmStore) {
   val state by store.state.collectAsStateWithLifecycle()
   var tab by remember { mutableStateOf(Tab.Alarm) }
-  var enrollmentLabel by remember { mutableStateOf<String?>(null) }
-  var pendingEnrollmentLabel by remember { mutableStateOf<String?>(null) }
+  var enrollmentRequest by remember { mutableStateOf<EnrollmentRequest?>(null) }
+  var pendingEnrollmentRequest by remember { mutableStateOf<EnrollmentRequest?>(null) }
   var cameraDenied by remember { mutableStateOf(false) }
   val snackbar = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
   val enrollmentPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
     if (granted) {
-      enrollmentLabel = pendingEnrollmentLabel
+      enrollmentRequest = pendingEnrollmentRequest
       cameraDenied = false
     } else {
       cameraDenied = true
     }
-    pendingEnrollmentLabel = null
+    pendingEnrollmentRequest = null
   }
 
-  val requestEnrollment: (String) -> Unit = { label ->
-    val normalized = label.ifBlank { "Wake object" }
+  val requestObjectScan: (EnrollmentRequest) -> Unit = { request ->
     if (store.cameraGranted()) {
-      enrollmentLabel = normalized
+      enrollmentRequest = request
     } else {
-      pendingEnrollmentLabel = normalized
+      pendingEnrollmentRequest = request
       enrollmentPermission.launch(Manifest.permission.CAMERA)
     }
+  }
+  val requestEnrollment: (String) -> Unit = { label ->
+    requestObjectScan(EnrollmentRequest(label.ifBlank { "Wake object" }))
   }
 
   state.runtime?.let { runtime ->
     LaunchedEffect(runtime.attemptId) {
-      enrollmentLabel = null
-      pendingEnrollmentLabel = null
+      enrollmentRequest = null
+      pendingEnrollmentRequest = null
     }
     RingingScreen(store = store, state = state)
     return
   }
 
-  enrollmentLabel?.let { label ->
+  enrollmentRequest?.let { request ->
     ObjectEnrollmentScreen(
-      label = label,
-      onCancel = { enrollmentLabel = null },
-      onComplete = { embeddings ->
-        store.addObjectTarget(label, embeddings)
-        enrollmentLabel = null
+      label = request.label,
+      onCancel = { enrollmentRequest = null },
+      onComplete = { embeddings, thumbnailJpeg ->
+        if (request.targetId == null) {
+          store.addObjectTarget(request.label, embeddings, thumbnailJpeg)
+        } else {
+          store.updateObjectTarget(request.targetId, embeddings, thumbnailJpeg)
+        }
+        enrollmentRequest = null
       },
     )
     return
@@ -188,7 +203,15 @@ private fun SuperAlarmRoot(store: SuperAlarmStore) {
         onDay = store::toggleDay,
         onVibration = store::setVibration,
       )
-      Tab.Dismissal -> DismissalTargetsScreen(Modifier.padding(padding), state, store, requestEnrollment)
+      Tab.Dismissal -> DismissalTargetsScreen(
+        modifier = Modifier.padding(padding),
+        state = state,
+        store = store,
+        onAddObject = requestEnrollment,
+        onRescanObject = { target ->
+          requestObjectScan(EnrollmentRequest(target.label, target.id))
+        },
+      )
       Tab.Health -> HealthScreen(Modifier.padding(padding), state, store)
     }
   }
@@ -255,11 +278,20 @@ private fun AlarmScreen(
   )
   val waitLabel = formatDuration(waitMinutes)
 
-  LazyColumn(modifier = modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+  LazyColumn(
+    modifier = modifier.fillMaxSize(),
+    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+      start = 20.dp,
+      top = 4.dp,
+      end = 20.dp,
+      bottom = 20.dp,
+    ),
+    verticalArrangement = Arrangement.spacedBy(12.dp),
+  ) {
     item { AlarmDial(state.alarm, waitLabel, onEditTime = { showTimeEditor = true }) }
     item {
       ListItem(
-        headlineContent = { Text("Alarm enabled") },
+        headlineContent = { Text("Alarm enabled", style = MaterialTheme.typography.bodyLarge) },
         supportingContent = {
           val allowedCount = state.alarm.allowedLocationIds.size + state.alarm.allowedObjectTargetIds.size
           Text(if (allowedCount == 0) "Requires an allowed QR spot or object" else "$allowedCount dismissal target${if (allowedCount == 1) "" else "s"} allowed")
@@ -272,7 +304,7 @@ private fun AlarmScreen(
     item { DayPicker(state.alarm.repeatDays, onDay) }
     item {
       ListItem(
-        headlineContent = { Text("Vibration") },
+        headlineContent = { Text("Vibration", style = MaterialTheme.typography.bodyLarge) },
         supportingContent = { Text("Use alarm vibration while ringing") },
         trailingContent = { Switch(checked = state.alarm.vibrationEnabled, onCheckedChange = onVibration) },
       )
@@ -314,7 +346,7 @@ private fun AlarmDial(alarm: AlarmConfig, waitLabel: String, onEditTime: () -> U
       drawArc(color = colorScheme.primary, startAngle = 150f, sweepAngle = 240f, useCenter = false, topLeft = topLeft, size = arcSize, style = stroke)
       drawArc(color = colorScheme.tertiary, startAngle = 150f, sweepAngle = (alarm.timeMinutesLocal / 1440f) * 240f, useCenter = false, topLeft = topLeft, size = arcSize, style = stroke)
     }
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.offset(y = (-20).dp)) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
       Text(time, style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.SemiBold)
       Text(if (alarm.enabled) "Enabled" else "Off", style = MaterialTheme.typography.labelLarge)
       Text("Rings in $waitLabel", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -326,7 +358,7 @@ private fun AlarmDial(alarm: AlarmConfig, waitLabel: String, onEditTime: () -> U
 @Composable
 private fun TimeEditor(minutes: Int, waitLabel: String, onEditTime: () -> Unit) {
   ListItem(
-    headlineContent = { Text("Time") },
+    headlineContent = { Text("Time", style = MaterialTheme.typography.bodyLarge) },
     supportingContent = { Text("${formatMinutes(minutes)} · rings in $waitLabel") },
     trailingContent = { TextButton(onClick = onEditTime) { Text("Edit") } },
   )
@@ -351,7 +383,7 @@ private fun SleepDurationSetter(onTime: (Int) -> Unit) {
   val nowMinutes = now.hour * 60 + now.minute
 
   Column(Modifier.padding(horizontal = 16.dp)) {
-    Text("Sleep for", style = MaterialTheme.typography.titleMedium)
+    Text("Sleep for", style = MaterialTheme.typography.bodyLarge)
     Spacer(Modifier.height(8.dp))
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
       SleepPresetButton(label = "5h", nowMinutes = nowMinutes, durationMinutes = 5 * 60, onTime = onTime)
@@ -414,8 +446,11 @@ private fun SleepDurationDialog(onDismiss: () -> Unit, onDuration: (Int) -> Unit
 @Composable
 private fun DayPicker(selected: List<Int>, onDay: (Int) -> Unit) {
   Column {
-    Text("Repeat", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 16.dp))
-    Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+    Text("Repeat", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(horizontal = 16.dp))
+    Row(
+      Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+      horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
       listOf("S", "M", "T", "W", "T", "F", "S").forEachIndexed { day, label ->
         FilterChip(selected = selected.contains(day), onClick = { onDay(day) }, label = { Text(label) })
       }
@@ -446,7 +481,55 @@ private fun HealthScreen(modifier: Modifier, state: AppState, store: SuperAlarmS
     }
     item { Text("Recent attempts", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)) }
     if (state.attempts.isEmpty()) item { Text("No attempts recorded yet.") }
-    items(state.attempts.take(8)) { Text("${it.kind}: ${it.result} at ${it.triggeredAt}", modifier = Modifier.padding(vertical = 8.dp)) }
+    items(state.attempts.take(8), key = { it.id }) { attempt ->
+      AttemptRow(attempt, state)
+    }
+  }
+}
+
+@Composable
+private fun AttemptRow(attempt: AlarmAttempt, state: AppState) {
+  val alarmName = if (attempt.kind == "test") "Test alarm" else "Alarm"
+  val headline = when (attempt.result) {
+    "dismissed" -> "$alarmName dismissed"
+    "interrupted" -> "$alarmName stopped before dismissal"
+    "missed" -> "$alarmName was missed"
+    else -> "$alarmName started"
+  }
+  val detail = buildList {
+    add(formatAttemptTime(attempt.triggeredAt))
+    when (attempt.dismissalMethod) {
+      "object" -> {
+        val label = state.objectTargets
+          .firstOrNull { it.id == attempt.dismissalLocationId }
+          ?.label
+        add(label?.let { "Matched $it" } ?: "Matched an object")
+      }
+      "qr" -> {
+        val label = state.qrLocations
+          .firstOrNull { it.id == attempt.dismissalLocationId }
+          ?.label
+        add(label?.let { "Scanned $it" } ?: "Scanned a QR spot")
+      }
+    }
+  }.joinToString(" · ")
+  ListItem(
+    headlineContent = { Text(headline) },
+    supportingContent = { Text(detail) },
+  )
+}
+
+private fun formatAttemptTime(value: String): String {
+  val time = runCatching {
+    Instant.parse(value).atZone(ZoneId.systemDefault())
+  }.getOrNull() ?: return "Time unavailable"
+  val localDate = time.toLocalDate()
+  val today = LocalDate.now(time.zone)
+  val clock = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).format(time)
+  return when (localDate) {
+    today -> "Today at $clock"
+    today.minusDays(1) -> "Yesterday at $clock"
+    else -> "${DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(time)} at $clock"
   }
 }
 

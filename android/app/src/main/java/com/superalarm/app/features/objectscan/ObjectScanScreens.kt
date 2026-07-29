@@ -1,5 +1,6 @@
 package com.superalarm.app.features.objectscan
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -10,7 +11,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -52,10 +55,14 @@ private val enrollmentSteps = listOf(
 fun ObjectEnrollmentScreen(
   label: String,
   onCancel: () -> Unit,
-  onComplete: (List<String>) -> Unit,
+  onComplete: (List<String>, ByteArray?) -> Unit,
 ) {
+  BackHandler(onBack = onCancel)
   var currentFrame by remember { mutableStateOf<ObjectFrameSample?>(null) }
   var capturedEmbeddings by remember { mutableStateOf(emptyList<String>()) }
+  var bestThumbnailJpeg by remember { mutableStateOf<ByteArray?>(null) }
+  var bestThumbnailScore by remember { mutableStateOf(Double.NEGATIVE_INFINITY) }
+  var latestThumbnailJpeg by remember { mutableStateOf<ByteArray?>(null) }
   var lastCaptureAt by remember { mutableLongStateOf(0L) }
   var error by remember { mutableStateOf<String?>(null) }
   val haptics = LocalHapticFeedback.current
@@ -83,7 +90,10 @@ fun ObjectEnrollmentScreen(
     currentFrame = null
     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
     if (next.size == enrollmentSteps.size) {
-      onComplete(ObjectEmbeddings.selectDiverse(next, SAVED_ENROLLMENT_VIEWS))
+      onComplete(
+        ObjectEmbeddings.selectDiverse(next, SAVED_ENROLLMENT_VIEWS),
+        bestThumbnailJpeg ?: latestThumbnailJpeg,
+      )
     } else {
       capturedEmbeddings = next
     }
@@ -92,7 +102,17 @@ fun ObjectEnrollmentScreen(
   Box(Modifier.fillMaxSize().background(Color.Black)) {
     ObjectCameraView(
       modifier = Modifier.fillMaxSize(),
-      onFrame = { currentFrame = it },
+      captureThumbnail = true,
+      onFrame = { sample ->
+        sample.thumbnailJpeg?.let { thumbnail ->
+          latestThumbnailJpeg = thumbnail
+          if (sample.thumbnailQualityScore >= bestThumbnailScore) {
+            bestThumbnailScore = sample.thumbnailQualityScore
+            bestThumbnailJpeg = thumbnail
+          }
+        }
+        currentFrame = sample
+      },
       onError = { error = it },
     )
     ScanGuide(
@@ -117,6 +137,7 @@ fun ObjectDismissalScreen(
   onCancel: () -> Unit,
   onMatch: (String) -> Unit,
 ) {
+  BackHandler(onBack = onCancel)
   val tracker = remember(targets) { ObjectMatchTracker(targets) }
   var progress by remember {
     mutableStateOf(ObjectMatchProgress(null, null, 0.0, 0, ObjectMatchTracker.REQUIRED_MATCHES))
@@ -191,7 +212,7 @@ private fun ScanGuide(color: Color, progress: Float) {
 @Composable
 private fun ScanTopBar(title: String, onClose: () -> Unit) {
   Surface(
-    modifier = Modifier.fillMaxWidth(),
+    modifier = Modifier.fillMaxWidth().statusBarsPadding(),
     color = Color.Black.copy(alpha = 0.66f),
     contentColor = Color.White,
   ) {
@@ -219,7 +240,7 @@ private fun ScanPanel(
     contentColor = Color.White,
   ) {
     Column(
-      modifier = Modifier.padding(20.dp),
+      modifier = Modifier.navigationBarsPadding().padding(20.dp),
       verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
       Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)

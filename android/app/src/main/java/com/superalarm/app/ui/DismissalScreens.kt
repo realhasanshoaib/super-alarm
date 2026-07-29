@@ -2,6 +2,8 @@ package com.superalarm.app.ui
 
 import android.Manifest
 import android.content.Intent
+import android.graphics.BitmapFactory
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -17,8 +19,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -28,12 +32,14 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -45,6 +51,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -64,6 +71,7 @@ fun DismissalTargetsScreen(
   state: AppState,
   store: SuperAlarmStore,
   onAddObject: (String) -> Unit,
+  onRescanObject: (ObjectTarget) -> Unit,
 ) {
   var showAddQr by remember { mutableStateOf(false) }
   var showAddObject by remember { mutableStateOf(false) }
@@ -93,8 +101,25 @@ fun DismissalTargetsScreen(
     if (state.objectTargets.isNotEmpty()) {
       item { Text("Objects", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp, start = 16.dp)) }
     }
-    items(state.objectTargets, key = { it.id }) { target ->
-      ObjectTargetRow(target, state.alarm.allowedObjectTargetIds.contains(target.id), store)
+    items(
+      items = state.objectTargets.chunked(2),
+      key = { row -> row.joinToString(separator = "-") { it.id } },
+    ) { row ->
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+      ) {
+        row.forEach { target ->
+          ObjectTargetCard(
+            modifier = Modifier.weight(1f),
+            target = target,
+            allowed = state.alarm.allowedObjectTargetIds.contains(target.id),
+            store = store,
+            onRescan = { onRescanObject(target) },
+          )
+        }
+        if (row.size == 1) Spacer(Modifier.weight(1f))
+      }
     }
     if (state.qrLocations.isNotEmpty()) {
       item { Text("QR spots", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp, start = 16.dp)) }
@@ -153,6 +178,10 @@ fun RingingScreen(store: SuperAlarmStore, state: AppState) {
       permission.launch(Manifest.permission.CAMERA)
     }
   }
+  BackHandler(enabled = scanner != null) {
+    scanner = null
+    pendingScanner = null
+  }
 
   if (scanner == ScannerMode.Object) {
     ObjectDismissalScreen(
@@ -209,7 +238,10 @@ fun RingingScreen(store: SuperAlarmStore, state: AppState) {
   if (scanner == ScannerMode.Qr) {
     Box(Modifier.fillMaxSize().background(Color.Black)) {
       QrScannerView(modifier = Modifier.fillMaxSize(), onPayload = { if (store.dismissWithPayload(it)) scanner = null })
-      TextButton(onClick = { scanner = null }, modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)) {
+      TextButton(
+        onClick = { scanner = null },
+        modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(16.dp),
+      ) {
         Text("Close", color = Color.White)
       }
     }
@@ -217,21 +249,85 @@ fun RingingScreen(store: SuperAlarmStore, state: AppState) {
 }
 
 @Composable
-private fun ObjectTargetRow(target: ObjectTarget, allowed: Boolean, store: SuperAlarmStore) {
-  ListItem(
-    headlineContent = { Text(target.label) },
-    supportingContent = {
-      Text(if (allowed) "${target.embeddings.size} views · allowed to dismiss" else "Not allowed for this alarm")
-    },
-    leadingContent = {
-      Checkbox(checked = allowed, onCheckedChange = { store.toggleObjectAllowed(target.id) })
-    },
-    trailingContent = {
+private fun ObjectTargetCard(
+  modifier: Modifier,
+  target: ObjectTarget,
+  allowed: Boolean,
+  store: SuperAlarmStore,
+  onRescan: () -> Unit,
+) {
+  val thumbnail = remember(target.thumbnailFileName) {
+    store.objectThumbnailFile(target)
+      ?.let { BitmapFactory.decodeFile(it.absolutePath) }
+      ?.asImageBitmap()
+  }
+  ElevatedCard(
+    modifier = modifier,
+    shape = RoundedCornerShape(20.dp),
+  ) {
+    Box(
+      modifier = Modifier
+        .fillMaxWidth()
+        .aspectRatio(1.15f)
+        .background(MaterialTheme.colorScheme.surfaceVariant),
+      contentAlignment = Alignment.Center,
+    ) {
+      if (thumbnail == null) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+          Icon(
+            Icons.Default.PhotoCamera,
+            contentDescription = null,
+            modifier = Modifier.size(40.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+          Text(
+            "Rescan to add a preview",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp),
+          )
+        }
+      } else {
+        Image(
+          bitmap = thumbnail,
+          contentDescription = "Preview of ${target.label}",
+          modifier = Modifier.fillMaxSize(),
+          contentScale = ContentScale.Crop,
+        )
+      }
+    }
+    Row(
+      modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 10.dp, end = 8.dp),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Column(Modifier.weight(1f)) {
+        Text(target.label, style = MaterialTheme.typography.titleMedium)
+        Text(
+          "${target.embeddings.size} views · ${if (allowed) "Allowed" else "Not allowed"}",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+      Switch(
+        checked = allowed,
+        onCheckedChange = { store.toggleObjectAllowed(target.id) },
+      )
+    }
+    Row(
+      modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, bottom = 8.dp),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      TextButton(onClick = onRescan) {
+        Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.size(8.dp))
+        Text(if (thumbnail == null) "Add preview" else "Rescan")
+      }
+      Spacer(Modifier.weight(1f))
       IconButton(onClick = { store.deleteObjectTarget(target.id) }) {
         Icon(Icons.Default.Delete, "Delete ${target.label}")
       }
-    },
-  )
+    }
+  }
 }
 
 @Composable

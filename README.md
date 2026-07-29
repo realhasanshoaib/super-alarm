@@ -2,7 +2,9 @@
 
 Native iOS and Android alarm app. Android is Kotlin/Jetpack Compose with a native alarm service for full-screen ringing, backup re-rings, boot restore, reliability checks, and local diagnostics. iOS is SwiftUI with local notifications, Critical Alerts support when approved and provisioned, in-app alarm audio, and local diagnostics. Both apps support QR or fully on-device object-recognition dismissal.
 
-Object enrollment uses a short guided sweep that captures varied views automatically. Android stores quantized MobileNetV3 embeddings; iOS stores revision-pinned Apple Vision feature prints. Neither platform stores camera images or uploads scan data, and QR spots remain available as a separate dismissal method.
+Object enrollment uses a short guided sweep that captures varied views automatically. Android stores quantized MobileNetV3 embeddings; iOS stores revision-pinned Apple Vision feature prints. Neither platform uploads scan data, and QR spots remain available as a separate dismissal method.
+
+Android also keeps one small representative object thumbnail in private app storage so the Dismiss tab can show what was enrolled. The thumbnail stays on the device and is excluded from diagnostics exports.
 
 ## Native Development
 
