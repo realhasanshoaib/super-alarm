@@ -37,10 +37,12 @@ data class AlarmAttempt(
   val kind: String,
   val triggeredAt: String,
   val dismissedAt: String? = null,
+  val resultAt: String? = null,
   val result: String = "ringing",
   val backupStage: Int = 0,
   val dismissalLocationId: String? = null,
   val dismissalMethod: String? = null,
+  val dismissalTargetLabel: String? = null,
 )
 
 data class AlarmRuntimeState(
@@ -153,10 +155,12 @@ fun AlarmAttempt.toJson(): JSONObject = JSONObject().apply {
   put("kind", kind)
   put("triggeredAt", triggeredAt)
   put("dismissedAt", dismissedAt ?: JSONObject.NULL)
+  put("resultAt", resultAt ?: JSONObject.NULL)
   put("result", result)
   put("backupStage", backupStage)
   put("dismissalLocationId", dismissalLocationId ?: JSONObject.NULL)
   put("dismissalMethod", dismissalMethod ?: JSONObject.NULL)
+  put("dismissalTargetLabel", dismissalTargetLabel ?: JSONObject.NULL)
 }
 
 fun attemptFromJson(json: JSONObject): AlarmAttempt = AlarmAttempt(
@@ -165,10 +169,12 @@ fun attemptFromJson(json: JSONObject): AlarmAttempt = AlarmAttempt(
   kind = json.optString("kind", "live"),
   triggeredAt = json.optString("triggeredAt", Instant.now().toString()),
   dismissedAt = json.optNullableString("dismissedAt"),
+  resultAt = json.optNullableString("resultAt"),
   result = json.optString("result", "ringing"),
   backupStage = json.optInt("backupStage", 0),
   dismissalLocationId = json.optNullableString("dismissalLocationId"),
   dismissalMethod = json.optNullableString("dismissalMethod"),
+  dismissalTargetLabel = json.optNullableString("dismissalTargetLabel"),
 )
 
 fun AlarmRuntimeState.toJson(): JSONObject = JSONObject().apply {

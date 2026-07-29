@@ -497,18 +497,16 @@ private fun AttemptRow(attempt: AlarmAttempt, state: AppState) {
     else -> "$alarmName started"
   }
   val detail = buildList {
-    add(formatAttemptTime(attempt.triggeredAt))
+    add(formatAttemptTime(attempt.resultAt ?: attempt.dismissedAt ?: attempt.triggeredAt))
     when (attempt.dismissalMethod) {
       "object" -> {
-        val label = state.objectTargets
-          .firstOrNull { it.id == attempt.dismissalLocationId }
-          ?.label
+        val label = attempt.dismissalTargetLabel
+          ?: state.objectTargets.firstOrNull { it.id == attempt.dismissalLocationId }?.label
         add(label?.let { "Matched $it" } ?: "Matched an object")
       }
       "qr" -> {
-        val label = state.qrLocations
-          .firstOrNull { it.id == attempt.dismissalLocationId }
-          ?.label
+        val label = attempt.dismissalTargetLabel
+          ?: state.qrLocations.firstOrNull { it.id == attempt.dismissalLocationId }?.label
         add(label?.let { "Scanned $it" } ?: "Scanned a QR spot")
       }
     }

@@ -216,7 +216,7 @@ class SuperAlarmStore(private val context: Context) {
       return false
     }
 
-    completeDismissal(runtime, location.id, "qr")
+    completeDismissal(runtime, location.id, location.label, "qr")
     return true
   }
 
@@ -228,20 +228,25 @@ class SuperAlarmStore(private val context: Context) {
       addEvent("invalid_object", "Object is not enrolled or allowed for dismissal.")
       return false
     }
-    completeDismissal(runtime, target.id, "object")
+    completeDismissal(runtime, target.id, target.label, "object")
     addEvent("object_dismissal", "Alarm dismissed with ${target.label}.")
     return true
   }
 
   fun dismissWithoutScanForTestOnly() {
     val runtime = _state.value.runtime?.takeIf { it.kind == "test" } ?: return
+    val stoppedAt = Instant.now().toString()
     context.stopService(Intent(context, AlarmRingingService::class.java))
     AlarmStorage.clearPendingLaunch(context)
     update { state ->
       state.copy(
         runtime = null,
         attempts = state.attempts.map { attempt ->
-          if (attempt.id == runtime.attemptId) attempt.copy(result = "interrupted") else attempt
+          if (attempt.id == runtime.attemptId) {
+            attempt.copy(result = "interrupted", resultAt = stoppedAt)
+          } else {
+            attempt
+          }
         },
       )
     }
@@ -307,7 +312,13 @@ class SuperAlarmStore(private val context: Context) {
     }
   }
 
-  private fun completeDismissal(runtime: AlarmRuntimeState, targetId: String, method: String) {
+  private fun completeDismissal(
+    runtime: AlarmRuntimeState,
+    targetId: String,
+    targetLabel: String,
+    method: String,
+  ) {
+    val dismissedAt = Instant.now().toString()
     AlarmScheduler.cancelActiveBackups(context, AlarmStorage.readAlarmConfig(context))
     AlarmStorage.clearPendingLaunch(context)
     context.stopService(Intent(context, AlarmRingingService::class.java))
@@ -317,10 +328,12 @@ class SuperAlarmStore(private val context: Context) {
         attempts = current.attempts.map {
           if (it.id == runtime.attemptId) {
             it.copy(
-              dismissedAt = Instant.now().toString(),
+              dismissedAt = dismissedAt,
+              resultAt = dismissedAt,
               result = "dismissed",
               dismissalLocationId = targetId,
               dismissalMethod = method,
+              dismissalTargetLabel = targetLabel,
             )
           } else {
             it
@@ -347,10 +360,17 @@ class SuperAlarmStore(private val context: Context) {
 
   private fun recoverColdRuntime() {
     val runtime = _state.value.runtime ?: return
+    val interruptedAt = Instant.now().toString()
     update { state ->
       state.copy(
         runtime = null,
-        attempts = state.attempts.map { if (it.id == runtime.attemptId) it.copy(result = "interrupted") else it },
+        attempts = state.attempts.map {
+          if (it.id == runtime.attemptId) {
+            it.copy(result = "interrupted", resultAt = interruptedAt)
+          } else {
+            it
+          }
+        },
         diagnosticEvents = listOf(AlarmDiagnosticEvent(type = "runtime_recovered", message = "Previous ringing state was interrupted on launch.")) + state.diagnosticEvents,
       )
     }

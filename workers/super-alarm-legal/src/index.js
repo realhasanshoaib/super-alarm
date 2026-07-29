@@ -416,7 +416,7 @@ function home() {
     </div></section>
 
     <section class="section"><div class="container"><div class="privacy-block"><div class="privacy-grid">
-      <div><h2 class="display">No account. No ads. No catch.</h2><p>There's nothing to sign up for. Your alarms live on your phone, and the camera only ever reads the QR code in front of it.</p></div>
+      <div><h2 class="display">No account. No ads. No catch.</h2><p>There's nothing to sign up for. Your alarms and object scans stay on your phone, and camera processing happens entirely on device.</p></div>
       <div class="privacy-list"><div class="privacy-item">${icon("lock")} No sign-up</div><div class="privacy-item">${icon("shield")} No ads or tracking</div><div class="privacy-item">${icon("phone")} Everything stays on your phone</div></div>
     </div></div></div></section>
 
@@ -434,13 +434,13 @@ function privacy() {
     <section class="legal-hero"><p class="overline">Privacy Policy</p><h1>No account. No ads. Local first.</h1><p class="meta">Last updated: July 29, 2026</p></section>
     <section class="legal-body">
       <p>Super Alarm is designed to respect your privacy by default. There is no account, no server, no ads, and no third-party tracking. Everything stays on your device.</p>
-      <h2>What Super Alarm does</h2><p>Super Alarm helps you wake up by requiring an intentional scan for alarm dismissal. Android can recognize an enrolled household object or scan a QR code. iOS uses QR-code scanning. On Android, alarms open a full-screen ringing flow. On iOS, scheduled notifications open the QR dismissal flow when tapped.</p>
-      <h2>Data stored on your device</h2><ul><li>Alarm settings such as time, days, sound, and label</li><li>QR location labels and payloads you create</li><li>Enrolled object labels and quantized visual fingerprints on Android</li><li>Reliability checklist state</li><li>Recent alarm attempts and results</li><li>Local diagnostic events</li></ul><p>Camera images and video are not stored. None of this data is sent to Super Alarm servers automatically. It never leaves your device unless you explicitly export and share it.</p>
-      <h2>Camera</h2><p>The camera is used to scan QR codes and, on Android, to create and compare visual fingerprints for object-based alarm dismissal. Camera images and video are processed on device and are not stored or uploaded.</p>
+      <h2>What Super Alarm does</h2><p>Super Alarm helps you wake up by requiring an intentional scan for alarm dismissal. Android and iOS can recognize an enrolled household object or scan a QR code. On Android, alarms open a full-screen ringing flow. On iOS, scheduled notifications open the dismissal flow when tapped.</p>
+      <h2>Data stored on your device</h2><ul><li>Alarm settings such as time, days, sound, and label</li><li>QR location labels and payloads you create</li><li>Enrolled object labels and on-device visual fingerprints</li><li>One small representative object thumbnail per enrolled Android object</li><li>Reliability checklist state</li><li>Recent alarm attempts and results</li><li>Local diagnostic events</li></ul><p>Camera video and all other scan frames are discarded. None of this data is sent to Super Alarm servers automatically. It never leaves your device unless you explicitly export and share it.</p>
+      <h2>Camera</h2><p>The camera is used to scan QR codes and to create and compare visual fingerprints for object-based alarm dismissal. Camera data is processed on device and is never uploaded. Android retains one representative thumbnail for each enrolled object so you can recognize it in the app; other camera images and video are not stored.</p>
       <h2>Permissions on Android</h2><ul><li><strong>Notifications</strong> to deliver alarm alerts</li><li><strong>Exact Alarm</strong> for precise alarm scheduling</li><li><strong>Full-Screen Intent</strong> to show the ringing screen over the lock screen</li><li><strong>Foreground Service</strong> to keep alarm audio playing</li><li><strong>Wake Lock</strong> to keep the screen on during ringing</li><li><strong>Vibration</strong> for tactile alarm feedback</li><li><strong>Camera</strong> for QR and object scanning</li><li><strong>Boot Restore</strong> to reschedule alarms after restart</li></ul>
-      <h2>Diagnostics export</h2><p>You can export a local JSON file containing alarm settings, QR location data, enrolled object labels and visual fingerprints on Android, recent attempts, and diagnostic events. This file stays under your control. If you send it to support, support receives it solely for troubleshooting.</p>
+      <h2>Diagnostics export</h2><p>You can export a local JSON file containing alarm settings, QR location data, enrolled object labels and visual fingerprints, Android thumbnail file names, recent attempts, and diagnostic events. Object thumbnail images are excluded. This file stays under your control. If you send it to support, support receives it solely for troubleshooting.</p>
       <h2>No analytics, ads, or tracking</h2><p>Super Alarm contains no third-party analytics SDKs, no advertising frameworks, and no tracking libraries. There are no crash reporters phoning home. The app is entirely offline.</p>
-      <h2>Deleting your data</h2><p>Uninstall Super Alarm or clear app storage from Android settings to erase all local data. Android backup is disabled for this app. Exported files can be deleted from your device at any time.</p>
+      <h2>Deleting your data</h2><p>Deleting an enrolled Android object also deletes its thumbnail. Uninstall Super Alarm or clear app storage from Android settings to erase all local data. Android backup is disabled for this app. Exported files can be deleted from your device at any time.</p>
       <h2>Contact</h2><p>Questions about privacy? Email <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>.</p>
     </section>
   </main>`;
@@ -451,12 +451,12 @@ function support() {
   const body = `<main class="container legal-main">
     <section class="legal-hero"><p class="overline">Support</p><h1>Need help? We've got you.</h1><p class="meta">Usually responds within 24 hours</p><a class="email-link" href="mailto:${SUPPORT_EMAIL}">${icon("mail")} ${SUPPORT_EMAIL}</a></section>
     <section id="ios" class="support-grid">
-      <article class="support-card highlight"><h3>Getting started</h3><p>No account required. Open the app, tap <code>Add QR spot</code>, grant camera and notification permissions, then use <code>Run routine test</code> before your first real morning.</p></article>
+      <article class="support-card highlight"><h3>Getting started</h3><p>No account required. Open the app, scan a household object or add a QR spot, grant the requested camera and alarm permissions, then use <code>Run routine test</code> before your first real morning.</p></article>
       <article class="support-card"><h3>Android alarm not firing?</h3><p>Open the Health tab and check notifications, exact alarms, full-screen intent, and battery optimization. These permissions protect reliable wakeups.</p></article>
       <article class="support-card"><h3>QR scan not working?</h3><p>Make sure the QR spot is allowed for the alarm. Only selected locations can dismiss the current alarm.</p></article>
       <article class="support-card"><h3>iOS TestFlight</h3><p>Join the external TestFlight beta to try Super Alarm on iPhone before the public App Store release.</p><p><a href="${IOS_URL}" target="_blank" rel="noopener">Open TestFlight</a></p></article>
       <article class="support-card"><h3>Export diagnostics</h3><p>Go to the Health tab and export diagnostics. Attach the JSON file to your email with your device model and OS version.</p></article>
-      <article class="support-card"><h3>Reviewer path</h3><p>Create a QR location, grant permissions, run a routine test, and scan the QR code to dismiss. No account is required.</p></article>
+      <article class="support-card"><h3>Reviewer path</h3><p>Scan an object or create a QR location, grant permissions, run a routine test, and use the enrolled target to dismiss. No account is required.</p></article>
     </section>
   </main>`;
   return shell("Support — Super Alarm", "/support", body);

@@ -16,3 +16,4 @@
 - Object previews now select the sharpest, best-exposed frame from the completed scan instead of keeping its first frame.
 - Tightened the alarm header, aligned control rows, normalized section typography, kept scanner controls clear of system bars, and made Android Back close scanners.
 - Replaced raw recent-attempt records with readable alarm results, local times, and dismissal-target names.
+- Restricted alarm restore broadcasts to Android system delivery.

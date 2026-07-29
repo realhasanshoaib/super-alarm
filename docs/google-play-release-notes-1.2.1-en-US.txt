@@ -1,0 +1,1 @@
+Dismiss alarms by scanning an everyday object—no printer required. This update adds a fast guided object scan, private on-device object previews in compact cards, easier rescanning, and faster matching. It also polishes the alarm layout and scanner navigation, and makes recent alarm attempts easier to understand.

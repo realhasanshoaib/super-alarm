@@ -14,7 +14,7 @@ Evidence: `android/app/src/main/java/com/superalarm/app/alarm/AlarmRingingServic
 
 ## Camera
 
-Used only after the user opens QR dismissal or Android object enrollment/dismissal. QR frames are checked for approved locations; object frames are converted on device into quantized visual fingerprints for later matching. Camera images and video are not stored or uploaded.
+Used only after the user opens QR dismissal or Android object enrollment/dismissal. QR frames are checked for approved locations; object frames are converted on device into quantized visual fingerprints for later matching. Android keeps one user-visible representative object thumbnail in private app storage. All other frames are discarded, and no camera image or video is uploaded.
 
 Evidence: `android/app/src/main/java/com/superalarm/app/features/qr/QrScannerView.kt` binds CameraX and ML Kit inside the QR flow. `android/app/src/main/java/com/superalarm/app/features/objectscan/ObjectCameraView.kt` binds CameraX and MediaPipe inside object enrollment and dismissal, which are presented by `android/app/src/main/java/com/superalarm/app/ui/SuperAlarmApp.kt`.
 

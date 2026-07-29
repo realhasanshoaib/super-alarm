@@ -52,6 +52,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -76,6 +77,15 @@ fun DismissalTargetsScreen(
   var showAddQr by remember { mutableStateOf(false) }
   var showAddObject by remember { mutableStateOf(false) }
   var selectedQr by remember { mutableStateOf<QrLocation?>(null) }
+  val configuration = LocalConfiguration.current
+  val objectColumns = if (
+    configuration.screenWidthDp >= TWO_COLUMN_MIN_WIDTH_DP &&
+    configuration.fontScale <= TWO_COLUMN_MAX_FONT_SCALE
+  ) {
+    2
+  } else {
+    1
+  }
   LazyColumn(
     modifier = modifier.fillMaxSize(),
     contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
@@ -102,7 +112,7 @@ fun DismissalTargetsScreen(
       item { Text("Objects", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp, start = 16.dp)) }
     }
     items(
-      items = state.objectTargets.chunked(2),
+      items = state.objectTargets.chunked(objectColumns),
       key = { row -> row.joinToString(separator = "-") { it.id } },
     ) { row ->
       Row(
@@ -118,7 +128,7 @@ fun DismissalTargetsScreen(
             onRescan = { onRescanObject(target) },
           )
         }
-        if (row.size == 1) Spacer(Modifier.weight(1f))
+        if (objectColumns == 2 && row.size == 1) Spacer(Modifier.weight(1f))
       }
     }
     if (state.qrLocations.isNotEmpty()) {
@@ -159,6 +169,9 @@ fun DismissalTargetsScreen(
   }
   selectedQr?.let { QrDialog(location = it, onDismiss = { selectedQr = null }) }
 }
+
+private const val TWO_COLUMN_MIN_WIDTH_DP = 380
+private const val TWO_COLUMN_MAX_FONT_SCALE = 1.2f
 
 @Composable
 fun RingingScreen(store: SuperAlarmStore, state: AppState) {
