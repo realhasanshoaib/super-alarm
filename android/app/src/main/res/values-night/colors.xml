@@ -1,1 +1,9 @@
-<resources/>
+<resources>
+  <color name="widget_background">#241a14</color>
+  <color name="widget_on_background">#f5ded0</color>
+  <color name="widget_primary">#ffb86b</color>
+  <color name="widget_on_primary">#4b2800</color>
+  <color name="widget_secondary">#4a382d</color>
+  <color name="widget_on_secondary">#f3dfd0</color>
+  <color name="widget_muted">#c6b6aa</color>
+</resources>

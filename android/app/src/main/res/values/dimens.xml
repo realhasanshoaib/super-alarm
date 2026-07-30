@@ -1,0 +1,3 @@
+<resources>
+  <dimen name="super_alarm_widget_corner_radius">24dp</dimen>
+</resources>

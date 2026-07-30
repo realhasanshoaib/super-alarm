@@ -44,6 +44,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -83,6 +85,10 @@ import com.superalarm.app.data.alarmWaitMinutes
 import com.superalarm.app.data.sleepWakeTimeMinutes
 import com.superalarm.app.data.SuperAlarmStore
 import com.superalarm.app.features.objectscan.ObjectEnrollmentScreen
+import com.superalarm.app.widget.hasSuperAlarmWidgets
+import com.superalarm.app.widget.needsHomeScreenPermissionHint
+import com.superalarm.app.widget.openHomeScreenPermissionSettings
+import com.superalarm.app.widget.requestPinSuperAlarmWidget
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -118,6 +124,7 @@ fun SuperAlarmApp(store: SuperAlarmStore) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SuperAlarmRoot(store: SuperAlarmStore) {
+  val context = LocalContext.current
   val state by store.state.collectAsStateWithLifecycle()
   var tab by remember { mutableStateOf(Tab.Alarm) }
   var enrollmentRequest by remember { mutableStateOf<EnrollmentRequest?>(null) }
@@ -202,6 +209,27 @@ private fun SuperAlarmRoot(store: SuperAlarmStore) {
         onTime = store::setTime,
         onDay = store::toggleDay,
         onVibration = store::setVibration,
+        onAddWidget = {
+          val requested = requestPinSuperAlarmWidget(context)
+          if (!requested) {
+            scope.launch { snackbar.showSnackbar("Add Next alarm from your launcher's widget picker") }
+          } else if (needsHomeScreenPermissionHint()) {
+            scope.launch {
+              delay(1_500L)
+              if (!hasSuperAlarmWidgets(context)) {
+                val result = snackbar.showSnackbar(
+                  message = "Allow Home screen shortcuts, then tap Add again",
+                  actionLabel = "Settings",
+                  withDismissAction = true,
+                  duration = SnackbarDuration.Long,
+                )
+                if (result == SnackbarResult.ActionPerformed) {
+                  openHomeScreenPermissionSettings(context)
+                }
+              }
+            }
+          }
+        },
       )
       Tab.Dismissal -> DismissalTargetsScreen(
         modifier = Modifier.padding(padding),
@@ -259,6 +287,7 @@ private fun AlarmScreen(
   onTime: (Int) -> Unit,
   onDay: (Int) -> Unit,
   onVibration: (Boolean) -> Unit,
+  onAddWidget: () -> Unit,
 ) {
   var showTimeEditor by remember { mutableStateOf(false) }
   var clock by remember { mutableStateOf(currentClockSnapshot()) }
@@ -307,6 +336,13 @@ private fun AlarmScreen(
         headlineContent = { Text("Vibration", style = MaterialTheme.typography.bodyLarge) },
         supportingContent = { Text("Use alarm vibration while ringing") },
         trailingContent = { Switch(checked = state.alarm.vibrationEnabled, onCheckedChange = onVibration) },
+      )
+    }
+    item {
+      ListItem(
+        headlineContent = { Text("Home screen widget", style = MaterialTheme.typography.bodyLarge) },
+        supportingContent = { Text("See the next alarm and set sleep duration from your launcher") },
+        trailingContent = { TextButton(onClick = onAddWidget) { Text("Add") } },
       )
     }
   }

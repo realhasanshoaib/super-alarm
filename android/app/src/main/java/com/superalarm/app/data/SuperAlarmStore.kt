@@ -18,6 +18,7 @@ import com.superalarm.app.alarm.AlarmScheduler
 import com.superalarm.app.alarm.AlarmStorage
 import com.superalarm.app.alarm.PendingAlarmLaunch
 import com.superalarm.app.alarm.StoredAlarmConfig
+import com.superalarm.app.widget.SuperAlarmWidgetUpdater
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,13 +27,16 @@ import java.io.File
 import java.time.Instant
 import java.util.UUID
 
-class SuperAlarmStore(private val context: Context) {
+class SuperAlarmStore(
+  private val context: Context,
+  private val recoverInterruptedRuntime: Boolean = true,
+) {
   private val prefs = context.getSharedPreferences("super_alarm_native_state", Context.MODE_PRIVATE)
   private val _state = MutableStateFlow(loadState())
   val state: StateFlow<AppState> = _state.asStateFlow()
 
   init {
-    recoverColdRuntime()
+    if (recoverInterruptedRuntime) recoverColdRuntime()
     syncScheduler(_state.value.alarm)
   }
 
@@ -383,6 +387,7 @@ class SuperAlarmStore(private val context: Context) {
       AlarmScheduler.cancelUpcoming(context, stored)
       AlarmStorage.setScheduledTriggerAt(context, 0L)
     }
+    SuperAlarmWidgetUpdater.requestUpdate(context)
   }
 
   private fun loadState(): AppState {

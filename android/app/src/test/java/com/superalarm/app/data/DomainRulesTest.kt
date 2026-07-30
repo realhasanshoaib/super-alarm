@@ -2,12 +2,37 @@ package com.superalarm.app.data
 
 import com.superalarm.app.features.objectscan.ObjectEmbeddings
 import com.superalarm.app.features.objectscan.ObjectMatchTracker
+import com.superalarm.app.widget.formatWidgetAlarmStatus
+import com.superalarm.app.widget.formatWidgetAlarmTime
+import com.superalarm.app.widget.formatWidgetRepeatDays
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.ZoneId
+import java.time.ZonedDateTime
 
 class DomainRulesTest {
+  @Test
+  fun widgetFormatsAlarmTimeForTwelveAndTwentyFourHourClocks() {
+    assertEquals("5:05 AM", formatWidgetAlarmTime(5 * 60 + 5, use24HourTime = false))
+    assertEquals("05:05", formatWidgetAlarmTime(5 * 60 + 5, use24HourTime = true))
+  }
+
+  @Test
+  fun widgetFormatsTomorrowAlarmAndRepeatDaysReadably() {
+    val zone = ZoneId.of("Asia/Karachi")
+    val now = ZonedDateTime.of(2026, 7, 30, 20, 0, 0, 0, zone)
+    val trigger = ZonedDateTime.of(2026, 7, 31, 5, 0, 0, 0, zone)
+
+    assertEquals(
+      "Tomorrow · in 9h",
+      formatWidgetAlarmStatus(true, trigger.toInstant().toEpochMilli(), now.toInstant().toEpochMilli(), zone),
+    )
+    assertEquals("Weekdays", formatWidgetRepeatDays(listOf(1, 2, 3, 4, 5)))
+    assertEquals("Every day", formatWidgetRepeatDays((0..6).toList()))
+  }
+
   @Test
   fun enabledAlarmRequiresAllowedQrSpot() {
     val alarm = AlarmConfig(enabled = true, allowedLocationIds = emptyList()).normalized()
