@@ -1,0 +1,7 @@
+# Super Alarm widget session log — 2026-07-30
+
+- 2026-07-30 — Began widget design discussion. Recommended one responsive Next Alarm widget: compact status at 2×1, next-alarm details at 2×2, and quick 5h/6h/8h sleep presets at 4×2. Kept alarm disabling out of one-tap widget actions to reduce accidental missed alarms.
+- 2026-07-30 — Confirmed the current Android scanner patch applies globally. The one-in-flight guard adapts naturally to slow inference, but the additional fixed 180 ms frame interval also caps fast phones; proposed retaining the guard while restoring a faster sampling interval so capable devices keep their existing responsiveness.
+- 2026-07-30 — Hasan selected adaptive scanner throughput. Restored the original 100 ms opportunity interval while keeping the one-in-flight guard: fast phones can process at their former rate, while slower phones naturally wait for each inference to finish instead of accumulating work.
+- 2026-07-30 — Installed the previously built reliability APK on the connected Xiaomi M2007J3SY with app data preserved, verified package version code 9, launched Super Alarm, and observed its Dismiss screen through the physical-device portal.
+- 2026-07-30 — Researched Android's current widget design and quality guidance. The Super Alarm concept follows one primary use case, responsive 2×1/2×2/4×2 layouts, 48 dp actions, edge-to-edge grid use, dynamic color, system corner radii, deliberate empty states, and immediate updates after actions.

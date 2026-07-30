@@ -272,7 +272,7 @@ private class ObjectFrameAnalyzer(
     ).also { engine = it }
 
   companion object {
-    private const val FRAME_INTERVAL_MILLIS = 180L
+    private const val FRAME_INTERVAL_MILLIS = 100L
   }
 }
 
