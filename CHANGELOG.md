@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.0 — 2026-07-30
+
+### Android and iOS
+
+- Replaced the short first-run prompt with a guided six-step setup covering dismissal, alarm time, repeat days, and phone readiness.
+- Added contextual alarm-critical permission checks before setup can continue.
+- Added a real scheduled wake-up test that must ring and be dismissed with the chosen object or QR spot before onboarding can finish.
+- Preserved onboarding progress so interrupted setup resumes at the right step.
+
 ## 1.3.0 — 2026-07-30
 
 ### Android

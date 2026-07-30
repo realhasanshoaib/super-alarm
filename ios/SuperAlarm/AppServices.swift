@@ -30,6 +30,8 @@ struct JsonStateStore {
 }
 
 struct AlarmNotificationService {
+    static let onboardingTestIdentifier = "superalarm-ios-onboarding-test"
+
     func requestAuthorization(includeCritical: Bool) async throws {
         var options: UNAuthorizationOptions = [.alert, .sound, .badge]
         if includeCritical { options.insert(.criticalAlert) }
@@ -79,6 +81,30 @@ struct AlarmNotificationService {
             )
             try await center.add(request)
         }
+    }
+
+    func scheduleOnboardingTest(after delay: TimeInterval, health: NotificationHealth) async throws -> Date {
+        let content = UNMutableNotificationContent()
+        content.title = "Super Alarm wake-up test"
+        content.body = "Tap to open the alarm, then dismiss it with your enrolled target."
+        content.categoryIdentifier = "ALARM"
+        content.userInfo = ["kind": "test"]
+        if health.hasCriticalEntitlement && health.criticalSetting == .enabled {
+            if #available(iOS 15.0, *) { content.interruptionLevel = .critical }
+            content.sound = UNNotificationSound.defaultCriticalSound(withAudioVolume: 1.0)
+        } else {
+            content.sound = .default
+        }
+
+        let triggerAt = Date().addingTimeInterval(max(delay, 5))
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(delay, 5), repeats: false)
+        let request = UNNotificationRequest(
+            identifier: Self.onboardingTestIdentifier,
+            content: content,
+            trigger: trigger
+        )
+        try await UNUserNotificationCenter.current().add(request)
+        return triggerAt
     }
 
     func nextTriggerDate(for alarm: AlarmConfig, now: Date = Date()) -> Date? {

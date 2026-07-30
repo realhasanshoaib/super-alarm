@@ -9,6 +9,8 @@ struct SuperAlarmState: Codable, Equatable {
     var diagnostics: [AlarmDiagnosticEvent] = []
     var runtime: AlarmRuntimeState?
     var hasCompletedOnboarding = false
+    var onboardingStep = OnboardingStep.welcome
+    var onboardingTestScheduledAt: Date?
     var migrationVersion = 1
 
     init() { }
@@ -22,8 +24,19 @@ struct SuperAlarmState: Codable, Equatable {
         diagnostics = try container.decodeIfPresent([AlarmDiagnosticEvent].self, forKey: .diagnostics) ?? []
         runtime = try container.decodeIfPresent(AlarmRuntimeState.self, forKey: .runtime)
         hasCompletedOnboarding = try container.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? false
+        onboardingStep = try container.decodeIfPresent(OnboardingStep.self, forKey: .onboardingStep) ?? .welcome
+        onboardingTestScheduledAt = try container.decodeIfPresent(Date.self, forKey: .onboardingTestScheduledAt)
         migrationVersion = try container.decodeIfPresent(Int.self, forKey: .migrationVersion) ?? 1
     }
+}
+
+enum OnboardingStep: Int, Codable, Equatable {
+    case welcome
+    case dismissalMethod
+    case alarm
+    case phoneSetup
+    case wakeUpTest
+    case ready
 }
 
 struct AlarmConfig: Codable, Equatable {

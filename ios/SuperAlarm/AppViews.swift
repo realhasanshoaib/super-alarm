@@ -42,66 +42,13 @@ struct RootView: View {
 
     private var onboardingBinding: Binding<Bool> {
         Binding(
-            get: {
-                !store.state.hasCompletedOnboarding &&
-                    store.state.qrLocations.isEmpty &&
-                    store.state.objectTargets.isEmpty
-            },
-            set: { if !$0 { store.state.hasCompletedOnboarding = true } }
+            get: { !store.state.hasCompletedOnboarding },
+            set: { _ in }
         )
     }
 
     private var alertBinding: Binding<Bool> {
         Binding(get: { store.alertMessage != nil }, set: { if !$0 { store.alertMessage = nil } })
-    }
-}
-
-struct OnboardingView: View {
-    @EnvironmentObject private var store: AppStore
-
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 24) {
-                Image(systemName: "viewfinder.circle")
-                    .font(.system(size: 72, weight: .regular))
-                    .foregroundStyle(.orange)
-                    .accessibilityHidden(true)
-                VStack(spacing: 10) {
-                    Text("Choose how to dismiss")
-                        .font(.largeTitle.bold())
-                        .multilineTextAlignment(.center)
-                    Text("Scan a household object with your camera, or create a QR spot. Pick something you must get out of bed to reach.")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                Spacer()
-                Button {
-                    store.activeSheet = .addObject
-                } label: {
-                    Label("Scan an Object", systemImage: "camera.viewfinder")
-                        .frame(maxWidth: .infinity, minHeight: 50)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                Button {
-                    store.activeSheet = .addSpot
-                } label: {
-                    Label("Create QR Spot", systemImage: "qrcode")
-                        .frame(maxWidth: .infinity, minHeight: 50)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-            }
-            .padding(28)
-            .navigationTitle("Super Alarm")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Later") { store.state.hasCompletedOnboarding = true }
-                }
-            }
-        }
-        .tint(.orange)
     }
 }
 

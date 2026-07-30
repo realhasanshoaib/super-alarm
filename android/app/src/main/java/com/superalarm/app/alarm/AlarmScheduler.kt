@@ -32,6 +32,27 @@ object AlarmScheduler {
     scheduleOccurrence(context, config, triggerAtMillis)
   }
 
+  fun scheduleTest(
+    context: Context,
+    config: StoredAlarmConfig,
+    delayMillis: Long,
+    nowMillis: Long = System.currentTimeMillis(),
+  ): Long? {
+    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
+      return null
+    }
+
+    val triggerAtMillis = nowMillis + delayMillis.coerceAtLeast(5_000L)
+    val launchIntent = buildLaunchPendingIntent(context, config.alarmId, triggerAtMillis, 0, "test")
+    val receiverIntent = buildReceiverPendingIntent(context, config.alarmId, triggerAtMillis, 0, "test", config)
+    alarmManager.setAlarmClock(
+      AlarmManager.AlarmClockInfo(triggerAtMillis, launchIntent),
+      receiverIntent,
+    )
+    return triggerAtMillis
+  }
+
   private fun scheduleOccurrence(context: Context, config: StoredAlarmConfig, triggerAtMillis: Long) {
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {

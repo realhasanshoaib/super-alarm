@@ -9,10 +9,28 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
 
 class DomainRulesTest {
+  @Test
+  fun onboardingTestPassRequiresScheduledTargetDismissal() {
+    val scheduledAt = Instant.parse("2026-07-30T12:00:00Z").toEpochMilli()
+    val dismissed = AlarmAttempt(
+      id = "attempt-1",
+      alarmId = "morning-alarm",
+      kind = "test",
+      triggeredAt = "2026-07-30T12:00:05Z",
+      result = "dismissed",
+      dismissalMethod = "object",
+    )
+    val stopped = dismissed.copy(id = "attempt-2", result = "interrupted", dismissalMethod = null)
+
+    assertTrue(AppState(attempts = listOf(dismissed), onboardingTestScheduledAtMillis = scheduledAt).onboardingTestPassed())
+    assertFalse(AppState(attempts = listOf(stopped), onboardingTestScheduledAtMillis = scheduledAt).onboardingTestPassed())
+  }
+
   @Test
   fun widgetFormatsAlarmTimeForTwelveAndTwentyFourHourClocks() {
     assertEquals("5:05 AM", formatWidgetAlarmTime(5 * 60 + 5, use24HourTime = false))

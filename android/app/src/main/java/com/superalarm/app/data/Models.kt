@@ -75,7 +75,31 @@ data class AppState(
   val diagnosticEvents: List<AlarmDiagnosticEvent> = emptyList(),
   val runtime: AlarmRuntimeState? = null,
   val onboardingComplete: Boolean = false,
+  val onboardingStep: Int = OnboardingSteps.Welcome,
+  val onboardingTestScheduledAtMillis: Long? = null,
 )
+
+object OnboardingSteps {
+  const val Welcome = 0
+  const val DismissalMethod = 1
+  const val Alarm = 2
+  const val PhoneSetup = 3
+  const val WakeUpTest = 4
+  const val Ready = 5
+  const val Last = Ready
+}
+
+fun AppState.onboardingTestPassed(): Boolean {
+  val scheduledAtMillis = onboardingTestScheduledAtMillis ?: return false
+  return attempts.any { attempt ->
+    val triggeredAtMillis = runCatching { Instant.parse(attempt.triggeredAt).toEpochMilli() }.getOrNull()
+    attempt.kind == "test" &&
+      attempt.result == "dismissed" &&
+      attempt.dismissalMethod in setOf("object", "qr") &&
+      triggeredAtMillis != null &&
+      triggeredAtMillis >= scheduledAtMillis - 5_000L
+  }
+}
 
 fun AppState.toJson(): JSONObject = JSONObject().apply {
   put("alarm", alarm.toJson())
@@ -85,6 +109,8 @@ fun AppState.toJson(): JSONObject = JSONObject().apply {
   put("diagnosticEvents", JSONArray(diagnosticEvents.map { it.toJson() }))
   put("runtime", runtime?.toJson() ?: JSONObject.NULL)
   put("onboardingComplete", onboardingComplete)
+  put("onboardingStep", onboardingStep)
+  put("onboardingTestScheduledAtMillis", onboardingTestScheduledAtMillis ?: JSONObject.NULL)
 }
 
 fun appStateFromJson(json: JSONObject): AppState = AppState(
@@ -95,6 +121,9 @@ fun appStateFromJson(json: JSONObject): AppState = AppState(
   diagnosticEvents = json.optJSONArray("diagnosticEvents").toObjectList(::eventFromJson),
   runtime = json.optJSONObject("runtime")?.let(::runtimeFromJson),
   onboardingComplete = json.optBoolean("onboardingComplete", false),
+  onboardingStep = json.optInt("onboardingStep", OnboardingSteps.Welcome)
+    .coerceIn(OnboardingSteps.Welcome, OnboardingSteps.Last),
+  onboardingTestScheduledAtMillis = json.optNullableLong("onboardingTestScheduledAtMillis"),
 )
 
 fun AlarmConfig.toJson(): JSONObject = JSONObject().apply {
@@ -224,3 +253,6 @@ private fun <T> JSONArray?.toObjectList(transform: (JSONObject) -> T): List<T> {
 
 private fun JSONObject.optNullableString(key: String): String? =
   if (isNull(key)) null else optString(key).takeIf(String::isNotBlank)
+
+private fun JSONObject.optNullableLong(key: String): Long? =
+  if (isNull(key) || !has(key)) null else optLong(key)

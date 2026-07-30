@@ -23,10 +23,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.HealthAndSafety
-import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -71,7 +69,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -179,10 +176,11 @@ private fun SuperAlarmRoot(store: SuperAlarmStore) {
     return
   }
 
-  if (!state.onboardingComplete && state.qrLocations.isEmpty() && state.objectTargets.isEmpty()) {
+  if (!state.onboardingComplete) {
     OnboardingScreen(
+      state = state,
+      store = store,
       cameraDenied = cameraDenied,
-      onCreateSpot = { label -> store.addLocation(label) },
       onScanObject = requestEnrollment,
     )
     return
@@ -241,40 +239,6 @@ private fun SuperAlarmRoot(store: SuperAlarmStore) {
         },
       )
       Tab.Health -> HealthScreen(Modifier.padding(padding), state, store)
-    }
-  }
-}
-
-@Composable
-private fun OnboardingScreen(
-  cameraDenied: Boolean,
-  onCreateSpot: (String) -> Unit,
-  onScanObject: (String) -> Unit,
-) {
-  var label by remember { mutableStateOf("Fridge") }
-  Column(
-    modifier = Modifier.fillMaxSize().padding(24.dp),
-    verticalArrangement = Arrangement.Center,
-  ) {
-    Text("Choose how to dismiss", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
-    Spacer(Modifier.height(12.dp))
-    Text("Scan a household object with your camera, or create a QR spot. Pick something you must get out of bed to reach.")
-    Spacer(Modifier.height(24.dp))
-    OutlinedTextField(value = label, onValueChange = { label = it }, label = { Text("Object or spot label") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-    Spacer(Modifier.height(16.dp))
-    Button(onClick = { onScanObject(label) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-      Icon(Icons.Default.PhotoCamera, null)
-      Spacer(Modifier.size(8.dp))
-      Text("Scan object")
-    }
-    Spacer(Modifier.height(8.dp))
-    OutlinedButton(onClick = { onCreateSpot(label) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-      Icon(Icons.Default.Add, null)
-      Spacer(Modifier.size(8.dp))
-      Text("Create QR spot")
-    }
-    if (cameraDenied) {
-      Text("Camera access is required to scan an object.", color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 12.dp))
     }
   }
 }

@@ -33,6 +33,16 @@ final class AppStore: ObservableObject {
         return "Alarm in \(interval / 60)h \(interval % 60)m"
     }
 
+    var onboardingTestPassed: Bool {
+        guard let scheduledAt = state.onboardingTestScheduledAt else { return false }
+        return state.attempts.contains { attempt in
+            attempt.kind == .test &&
+                attempt.result == .dismissed &&
+                ["object", "qr"].contains(attempt.dismissalMethod ?? "") &&
+                attempt.triggeredAt >= scheduledAt.addingTimeInterval(-5)
+        }
+    }
+
     func start() {
         guard !didStart else { return }
         didStart = true
@@ -84,6 +94,18 @@ final class AppStore: ObservableObject {
         save()
     }
 
+    func setOnboardingStep(_ step: OnboardingStep) {
+        state.onboardingStep = step
+        save()
+    }
+
+    func completeOnboarding() {
+        state.hasCompletedOnboarding = true
+        state.onboardingStep = .ready
+        state.alarm.isEnabled = true
+        persistAndReschedule()
+    }
+
     func addQrSpot(label: String) {
         let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -96,7 +118,9 @@ final class AppStore: ObservableObject {
         )
         state.qrLocations.append(spot)
         state.alarm.allowedLocationIds.append(id)
-        state.hasCompletedOnboarding = true
+        if !state.hasCompletedOnboarding {
+            state.onboardingStep = .alarm
+        }
         log(.info, "Created QR spot: \(trimmed)")
         haptics.success()
         persistAndReschedule()
@@ -141,7 +165,9 @@ final class AppStore: ObservableObject {
         )
         state.objectTargets.append(target)
         state.alarm.allowedObjectTargetIds.append(id)
-        state.hasCompletedOnboarding = true
+        if !state.hasCompletedOnboarding {
+            state.onboardingStep = .alarm
+        }
         log(.info, "Enrolled object: \(trimmed)")
         haptics.success()
         persistAndReschedule()
@@ -191,6 +217,30 @@ final class AppStore: ObservableObject {
 
     func runTestAlarm() {
         openRinging(kind: .test, notificationIdentifier: nil)
+    }
+
+    func scheduleOnboardingTest() {
+        Task {
+            await refreshHealth()
+            guard [.authorized, .provisional, .ephemeral].contains(health.authorizationStatus) else {
+                alertMessage = "Allow notifications before running the wake-up test."
+                return
+            }
+            do {
+                let triggerAt = try await notifications.scheduleOnboardingTest(after: 10, health: health)
+                await MainActor.run {
+                    self.state.alarm.isEnabled = true
+                    self.state.onboardingStep = .wakeUpTest
+                    self.state.onboardingTestScheduledAt = triggerAt
+                    self.persistAndReschedule()
+                }
+            } catch {
+                await MainActor.run {
+                    self.log(.error, "Wake-up test scheduling failed: \(error.localizedDescription)")
+                    self.alertMessage = "The wake-up test could not be scheduled. Check notification settings and try again."
+                }
+            }
+        }
     }
 
     func openRinging(kind: AlarmAttempt.Kind, notificationIdentifier: String?) {

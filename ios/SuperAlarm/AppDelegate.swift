@@ -34,7 +34,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         self.store = store
         UNUserNotificationCenter.current().delegate = self
         NotificationLaunchBridge.shared.onLaunch = { [weak store] identifier in
-            store?.openRinging(kind: .live, notificationIdentifier: identifier)
+            let kind: AlarmAttempt.Kind = identifier == AlarmNotificationService.onboardingTestIdentifier ? .test : .live
+            store?.openRinging(kind: kind, notificationIdentifier: identifier)
         }
     }
 

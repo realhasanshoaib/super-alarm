@@ -55,7 +55,16 @@ class SuperAlarmStore(
     }
   }
 
-  fun completeOnboarding() = update { it.copy(onboardingComplete = true) }
+  fun completeOnboarding() = update {
+    it.copy(
+      onboardingComplete = true,
+      onboardingStep = OnboardingSteps.Ready,
+    )
+  }
+
+  fun setOnboardingStep(step: Int) = update {
+    it.copy(onboardingStep = step.coerceIn(OnboardingSteps.Welcome, OnboardingSteps.Last))
+  }
 
   fun setTime(minutes: Int) = mutateAlarm { it.copy(timeMinutesLocal = minutes.coerceIn(0, 1439)) }
 
@@ -103,7 +112,11 @@ class SuperAlarmStore(
       state.copy(
         qrLocations = state.qrLocations + location,
         alarm = state.alarm.copy(allowedLocationIds = (state.alarm.allowedLocationIds + location.id).distinct()),
-        onboardingComplete = true,
+        onboardingStep = if (state.onboardingComplete) {
+          state.onboardingStep
+        } else {
+          maxOf(state.onboardingStep, OnboardingSteps.Alarm)
+        },
       )
     }
     return location
@@ -148,7 +161,11 @@ class SuperAlarmStore(
         alarm = state.alarm.copy(
           allowedObjectTargetIds = (state.alarm.allowedObjectTargetIds + target.id).distinct(),
         ),
-        onboardingComplete = true,
+        onboardingStep = if (state.onboardingComplete) {
+          state.onboardingStep
+        } else {
+          maxOf(state.onboardingStep, OnboardingSteps.Alarm)
+        },
       )
     }
     addEvent("object_enrolled", "Enrolled object: ${target.label}")
@@ -229,6 +246,29 @@ class SuperAlarmStore(
     )
   }
 
+  fun scheduleOnboardingTest(delayMillis: Long = 10_000L): Boolean {
+    val current = _state.value
+    if (!current.alarm.hasDismissalTarget()) return false
+
+    val caps = capabilities()
+    if (!caps.notificationsGranted || !caps.exactAlarmAllowed || !caps.fullscreenIntentAllowed) {
+      addEvent("onboarding_test_blocked", "Prepare notification, exact alarm, and lock-screen access first.")
+      return false
+    }
+
+    val alarm = current.alarm.copy(enabled = true).normalized()
+    val triggerAtMillis = AlarmScheduler.scheduleTest(context, alarm.toStoredConfig(), delayMillis) ?: return false
+    update {
+      it.copy(
+        alarm = alarm,
+        onboardingStep = OnboardingSteps.WakeUpTest,
+        onboardingTestScheduledAtMillis = triggerAtMillis,
+      )
+    }
+    addEvent("onboarding_test_scheduled", "Wake-up test scheduled through the Android alarm system.")
+    return true
+  }
+
   fun dismissWithPayload(payload: String): Boolean {
     val state = _state.value
     val runtime = state.runtime ?: return false
@@ -299,6 +339,12 @@ class SuperAlarmStore(
       ?.takeIf(File::isFile)
 
   fun openExactAlarmSettings() = openSettings(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
+
+  fun openNotificationSettings() {
+    openSettings(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+      putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+    })
+  }
 
   fun openFullscreenSettings() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
