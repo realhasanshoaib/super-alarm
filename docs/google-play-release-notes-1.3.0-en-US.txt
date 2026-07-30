@@ -1,0 +1,1 @@
+Add a responsive home-screen widget for your next alarm, with 5h, 6h, and 8h sleep shortcuts in the wide layout. Object recognition now handles lighting changes better and adapts its workload on entry-level phones for faster, steadier dismissal.

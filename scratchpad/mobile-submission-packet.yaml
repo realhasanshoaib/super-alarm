@@ -1,15 +1,15 @@
 ---
 v: 1
 status: blocked
-intent: "Complete Android version 6 policy review and physical-device QA while iOS is paused on entitlement, signing, and screenshot prerequisites."
+intent: "Publish Android 1.3.0 to production while iOS remains paused on entitlement, signing, and screenshot prerequisites."
 stores:
   - ios
   - android
 release:
-  version: 1.0.0
-  build: 7
+  version: 1.3.0
+  build: 10
   notes:
-    en-US: "Native rebuild: platform-native Android and iOS alarm flows with QR dismissal, diagnostics, and refreshed store assets."
+    en-US: "Add a responsive home-screen widget for your next alarm, with 5h, 6h, and 8h sleep shortcuts in the wide layout. Object recognition now handles lighting changes better and adapts its workload on entry-level phones for faster, steadier dismissal."
 ios:
   bundle: com.superalarm.app
   target: tf_internal
@@ -32,7 +32,7 @@ android:
   package: com.superalarm.app
   track: production
   api_track: production
-  status: production_published
+  status: production_in_review
   uploaded_tracks:
     - internal
     - beta
@@ -40,19 +40,19 @@ android:
   testing_opt_in_url: https://play.google.com/apps/testing/com.superalarm.app
   store_url: https://play.google.com/store/apps/details?id=com.superalarm.app
   aab: android/app/build/outputs/bundle/release/app-release.aab
-  release_artifact: build/releases/super-alarm-1.0.0-vc6-20260711-084118.aab
-  aab_sha256: 0397393d545d5c5225c3be56665736a00412c229e5ee0766465a95eccb7cc361
+  release_artifact: build/releases/super-alarm-1.3.0-vc10-20260730-1005.aab
+  aab_sha256: 0a1fa2c47fdd66625dd9809637e2c4adca0311df82cfd1c5feee19d4a12db752
   upload_certificate_sha256: 56:95:CD:E1:B7:4A:B1:8D:12:B8:B9:94:73:58:92:41:94:EF:C8:47:48:13:A7:C4:4D:8E:53:E9:EE:85:31:3C
-  version_code: 6
-  version_name: 1.0.0
+  version_code: 10
+  version_name: 1.3.0
   play: env:GOOGLE_APPLICATION_CREDENTIALS
   data_safety: ref:docs/play-data-safety.csv
-  result: "Version 6 removes Device Administrator uninstall protection. The signed AAB matches Play's registered upload certificate, and gplay 0.8.0 preflight reports zero errors, four expected alarm/build-metadata warnings, and four informational findings. Six fresh 1080x1920 RGB screenshots replaced the seven stale Play screenshots. Emulator QA verified launch, QR enrollment, time editing, QR display, Health without uninstall protection, foreground alarm notification, ringing UI, and test dismissal. The Media playback foreground-service declaration is Actioned with no policy issue. On 29 July 2026, Google Play edit 14311005444087967693 promoted versionCode 6 from beta/open testing to production at 100% with status completed. Google approved the rollout, the managed publishing action completed, Play Console reports Last published on 29 July 2026 with an empty ready-to-publish queue, and fresh Publisher API state confirms production release 1.0.0 (6) policy-safe is completed."
+  result: "The M4 Mac mini completed check, bundleRelease, and assembleRelease for versionCode 10. The signed AAB matches Play's registered upload certificate, and gplay 0.8.0 preflight reports zero errors, three expected alarm/build-metadata warnings, and zero manifest, native library, billing, privacy, policy, or size findings. Google Play edit 13221479750487591018 uploaded the bundle with a matching SHA-256, validated successfully, and committed production release 1.3.0 (10) home screen widget as a completed full rollout. The Publisher API reports versionCode 10 on production. Play Console has managed publishing enabled, the automated checks completed without surfacing an issue, and Google is reviewing the release under Changes in review."
   foreground_service_video: store/media/google-play/foreground-service-media-playback-demo-vc6-20260711.mp4
   foreground_service_video_sha256: 2caf796839fdefe943b74788d109572b33f3e496a4c886f788bd511b5db859fc
   foreground_service_video_url: https://youtube.com/shorts/EZVvp7KBpHg?feature=share
   foreground_service_declaration: actioned
-  next_action: "Allow Play Store propagation, install the production release on a clean physical device, and verify the new UI, lock-screen alarm, camera QR scanning, audio, and vibration."
+  next_action: "Wait for Google Play review approval, use the managed-publishing action to publish versionCode 10, then verify the public production state and install the propagated Play build on a clean physical device."
 review:
   demo: null
   apple_notes: "No account required. Create a QR spot, allow notifications and camera, enable the alarm, then use Test Alarm. On iOS, Critical Alerts are requested only when the signed entitlement is present; otherwise the app uses standard local notifications and opens the QR dismissal flow when the notification is tapped."
@@ -77,6 +77,6 @@ blockers:
   - "All iOS screenshots are stale and have been removed. Fresh iPhone screenshots are required before the next iOS submission."
 risks:
   - "Native migration real-device QA is still needed for lock-screen/full-screen alarm behavior, camera QR scanning, notification permissions, haptics/vibration, and accessibility."
-  - "Android production versionCode 6 is published, but Play Store device propagation can take up to an hour or occasionally longer."
-  - "Open testing and production point to versionCode 6. Internal testing remains on versionCode 5 and must not be promoted over the newer release."
+  - "Android production versionCode 10 is in Google Play review with managed publishing enabled; it is not public until Google approves it and the ready-to-publish change is published."
+  - "Beta remains on versionCode 6 and internal testing remains on versionCode 5; neither older release should be promoted over production versionCode 10."
   - "iOS uses scheduled local notifications, not Android-style full-screen exact alarms; Critical Alerts improve notification delivery but do not create an Android-style background ringing service."
