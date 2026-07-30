@@ -41,8 +41,11 @@ struct OnboardingView: View {
             case .object:
                 AddObjectView()
             case .qr:
-                AddQrSpotView()
+                OnboardingQrSetupView()
             }
+        }
+        .fullScreenCover(isPresented: $store.isRingingPresented) {
+            RingingView()
         }
     }
 
@@ -160,6 +163,59 @@ private struct DismissalMethodOnboardingStep: View {
     }
 }
 
+private struct OnboardingQrSetupView: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var store: AppStore
+    @State private var label = ""
+    @State private var createdSpot: QrLocation?
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if let createdSpot {
+                    ScrollView {
+                        VStack(spacing: 20) {
+                            Text("Screenshot or show this code on another device before continuing. You’ll scan it during the wake-up test.")
+                                .foregroundStyle(.secondary)
+                            QrCodeView(payload: createdSpot.payload)
+                                .frame(maxWidth: .infinity, minHeight: 280)
+                                .accessibilityLabel("QR code for \(createdSpot.label)")
+                            ShareLink(item: createdSpot.payload) {
+                                Label("Share QR payload", systemImage: "square.and.arrow.up")
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        .padding(24)
+                    }
+                } else {
+                    Form {
+                        Section {
+                            TextField("Spot name", text: $label)
+                                .textInputAutocapitalization(.words)
+                        } footer: {
+                            Text("Use a place you must physically reach in the morning, like Bathroom sink or Kitchen kettle.")
+                        }
+                    }
+                }
+            }
+            .navigationTitle(createdSpot == nil ? "Create QR Spot" : "Save Your QR Spot")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(createdSpot == nil ? "Cancel" : "Done") { dismiss() }
+                }
+                if createdSpot == nil {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Create") {
+                            createdSpot = store.addQrSpot(label: label)
+                        }
+                        .disabled(label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+            }
+        }
+    }
+}
+
 private struct AlarmOnboardingStep: View {
     @EnvironmentObject private var store: AppStore
     let onContinue: () -> Void
@@ -199,9 +255,18 @@ private struct AlarmOnboardingStep: View {
 
 private struct PhoneSetupOnboardingStep: View {
     @EnvironmentObject private var store: AppStore
+    @Environment(\.scenePhase) private var scenePhase
 
-    private var notificationsReady: Bool {
+    private var authorizationReady: Bool {
         [.authorized, .provisional, .ephemeral].contains(store.health.authorizationStatus)
+    }
+
+    private var soundReady: Bool {
+        store.health.soundSetting == .enabled
+    }
+
+    private var setupReady: Bool {
+        authorizationReady && soundReady
     }
 
     var body: some View {
@@ -216,25 +281,47 @@ private struct PhoneSetupOnboardingStep: View {
                 title: "Notifications",
                 detail: "Delivers the alarm while this app is closed.",
                 value: store.health.notificationLabel,
-                ready: notificationsReady,
-                action: store.requestNotifications
+                ready: authorizationReady,
+                action: notificationAction
             )
             OnboardingPermissionRow(
                 systemImage: "speaker.wave.3",
                 title: "Alert sound",
                 detail: "Uses Critical Alerts when the entitlement is available.",
-                value: store.health.hasCriticalEntitlement ? store.health.criticalLabel : "Standard alert",
-                ready: store.health.soundSetting == .enabled,
-                action: store.requestNotifications
+                value: soundReady
+                    ? (store.health.hasCriticalEntitlement ? store.health.criticalLabel : "On")
+                    : "Off",
+                ready: soundReady,
+                action: soundAction
             )
             Spacer()
             OnboardingPrimaryButton(
-                notificationsReady ? "Run wake-up test" : "Allow notifications first",
-                enabled: notificationsReady,
+                setupReady ? "Run wake-up test" : "Prepare notifications and sound",
+                enabled: setupReady,
                 action: store.scheduleOnboardingTest
             )
         }
         .task { await store.refreshHealth() }
+        .onChange(of: scenePhase) { phase in
+            guard phase == .active else { return }
+            Task { await store.refreshHealth() }
+        }
+    }
+
+    private func notificationAction() {
+        if store.health.authorizationStatus == .denied {
+            store.openAppSettings()
+        } else {
+            store.requestNotifications()
+        }
+    }
+
+    private func soundAction() {
+        if authorizationReady {
+            store.openAppSettings()
+        } else {
+            notificationAction()
+        }
     }
 }
 

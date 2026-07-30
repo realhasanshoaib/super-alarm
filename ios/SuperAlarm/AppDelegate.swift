@@ -71,10 +71,23 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 
 final class NotificationLaunchBridge {
     static let shared = NotificationLaunchBridge()
-    var onLaunch: ((String) -> Void)?
+    private var pendingIdentifier: String?
+    var onLaunch: ((String) -> Void)? {
+        didSet {
+            guard let onLaunch, let pendingIdentifier else { return }
+            self.pendingIdentifier = nil
+            DispatchQueue.main.async { onLaunch(pendingIdentifier) }
+        }
+    }
 
     func open(identifier: String) {
-        DispatchQueue.main.async { self.onLaunch?(identifier) }
+        DispatchQueue.main.async {
+            if let onLaunch = self.onLaunch {
+                onLaunch(identifier)
+            } else {
+                self.pendingIdentifier = identifier
+            }
+        }
     }
 }
 

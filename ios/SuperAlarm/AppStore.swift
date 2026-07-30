@@ -106,9 +106,10 @@ final class AppStore: ObservableObject {
         persistAndReschedule()
     }
 
-    func addQrSpot(label: String) {
+    @discardableResult
+    func addQrSpot(label: String) -> QrLocation? {
         let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty else { return nil }
         let id = UUID()
         let spot = QrLocation(
             id: id,
@@ -124,6 +125,7 @@ final class AppStore: ObservableObject {
         log(.info, "Created QR spot: \(trimmed)")
         haptics.success()
         persistAndReschedule()
+        return spot
     }
 
     func deleteQrSpot(_ spot: QrLocation) {
@@ -211,6 +213,11 @@ final class AppStore: ObservableObject {
         }
     }
 
+    func openAppSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
+    }
+
     func refreshHealth() async {
         health = await notifications.health()
     }
@@ -226,13 +233,17 @@ final class AppStore: ObservableObject {
                 alertMessage = "Allow notifications before running the wake-up test."
                 return
             }
+            guard health.soundSetting == .enabled else {
+                alertMessage = "Turn on Sounds for Super Alarm in iOS Settings before running the wake-up test."
+                return
+            }
             do {
                 let triggerAt = try await notifications.scheduleOnboardingTest(after: 10, health: health)
                 await MainActor.run {
-                    self.state.alarm.isEnabled = true
+                    self.state.alarm.isEnabled = false
                     self.state.onboardingStep = .wakeUpTest
                     self.state.onboardingTestScheduledAt = triggerAt
-                    self.persistAndReschedule()
+                    self.save()
                 }
             } catch {
                 await MainActor.run {

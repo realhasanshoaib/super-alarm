@@ -1,11 +1,14 @@
 package com.superalarm.app.ui
 
 import android.Manifest
+import android.content.Intent
 import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -55,6 +58,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -63,9 +68,11 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.superalarm.app.data.AppState
 import com.superalarm.app.data.OnboardingSteps
+import com.superalarm.app.data.QrLocation
 import com.superalarm.app.data.ReliabilityChecklistState
 import com.superalarm.app.data.SuperAlarmStore
 import com.superalarm.app.data.onboardingTestPassed
+import com.superalarm.app.features.qr.qrBitmap
 import kotlinx.coroutines.delay
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -81,6 +88,7 @@ fun OnboardingScreen(
   val step = state.onboardingStep
   var refreshKey by remember { mutableStateOf(0) }
   var notificationDenied by remember { mutableStateOf(false) }
+  var onboardingQr by remember { mutableStateOf<QrLocation?>(null) }
   val capabilities = remember(refreshKey, step) { store.capabilities() }
   val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
     notificationDenied = !granted
@@ -133,7 +141,9 @@ fun OnboardingScreen(
         )
         OnboardingSteps.DismissalMethod -> DismissalMethodStep(
           cameraDenied = cameraDenied,
-          onCreateQrSpot = { store.addLocation(it) },
+          onCreateQrSpot = {
+            onboardingQr = store.addLocation(it)
+          },
           onScanObject = onScanObject,
         )
         OnboardingSteps.Alarm -> AlarmStep(
@@ -172,6 +182,13 @@ fun OnboardingScreen(
         )
       }
     }
+  }
+
+  onboardingQr?.let { location ->
+    OnboardingQrDialog(
+      location = location,
+      onDismiss = { onboardingQr = null },
+    )
   }
 }
 
@@ -257,6 +274,49 @@ private fun DismissalMethodStep(
       )
     }
   }
+}
+
+@Composable
+private fun OnboardingQrDialog(
+  location: QrLocation,
+  onDismiss: () -> Unit,
+) {
+  val context = LocalContext.current
+  val bitmap = remember(location.payload) { qrBitmap(location.payload).asImageBitmap() }
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text("Save your QR spot") },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Screenshot or show this code on another device before continuing. You’ll scan it during the wake-up test.")
+        Image(
+          bitmap = bitmap,
+          contentDescription = "QR code for ${location.label}",
+          modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+        )
+      }
+    },
+    confirmButton = {
+      TextButton(
+        onClick = {
+          context.startActivity(
+            Intent.createChooser(
+              Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, location.payload)
+              },
+              "Share QR payload",
+            ),
+          )
+        },
+      ) {
+        Text("Share")
+      }
+    },
+    dismissButton = {
+      TextButton(onClick = onDismiss) { Text("Done") }
+    },
+  )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

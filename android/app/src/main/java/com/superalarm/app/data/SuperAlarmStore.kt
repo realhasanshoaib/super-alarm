@@ -57,6 +57,7 @@ class SuperAlarmStore(
 
   fun completeOnboarding() = update {
     it.copy(
+      alarm = it.alarm.copy(enabled = true).normalized(),
       onboardingComplete = true,
       onboardingStep = OnboardingSteps.Ready,
     )
@@ -256,8 +257,13 @@ class SuperAlarmStore(
       return false
     }
 
-    val alarm = current.alarm.copy(enabled = true).normalized()
-    val triggerAtMillis = AlarmScheduler.scheduleTest(context, alarm.toStoredConfig(), delayMillis) ?: return false
+    val alarm = current.alarm.copy(enabled = false).normalized()
+    val triggerAtMillis = AlarmScheduler.scheduleTest(
+      context = context,
+      config = alarm.toStoredConfig(),
+      delayMillis = delayMillis,
+      previousTriggerAtMillis = current.onboardingTestScheduledAtMillis,
+    ) ?: return false
     update {
       it.copy(
         alarm = alarm,

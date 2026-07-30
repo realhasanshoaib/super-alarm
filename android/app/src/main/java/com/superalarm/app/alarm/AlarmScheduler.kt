@@ -36,6 +36,7 @@ object AlarmScheduler {
     context: Context,
     config: StoredAlarmConfig,
     delayMillis: Long,
+    previousTriggerAtMillis: Long? = null,
     nowMillis: Long = System.currentTimeMillis(),
   ): Long? {
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -43,6 +44,7 @@ object AlarmScheduler {
       return null
     }
 
+    previousTriggerAtMillis?.let { cancelOccurrence(context, config, it, "test") }
     val triggerAtMillis = nowMillis + delayMillis.coerceAtLeast(5_000L)
     val launchIntent = buildLaunchPendingIntent(context, config.alarmId, triggerAtMillis, 0, "test")
     val receiverIntent = buildReceiverPendingIntent(context, config.alarmId, triggerAtMillis, 0, "test", config)
