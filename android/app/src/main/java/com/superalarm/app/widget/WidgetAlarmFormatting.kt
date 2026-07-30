@@ -18,9 +18,12 @@ fun formatWidgetAlarmStatus(
   triggerAtMillis: Long,
   nowMillis: Long,
   zoneId: ZoneId,
+  hasRepeatDays: Boolean = true,
 ): String {
   if (!enabled) return "Off · tap to set"
-  if (triggerAtMillis <= nowMillis) return "Enabled · check permissions"
+  if (triggerAtMillis <= nowMillis) {
+    return if (hasRepeatDays) "Enabled · check permissions" else "No repeat days · tap to set"
+  }
 
   val nowDate = Instant.ofEpochMilli(nowMillis).atZone(zoneId).toLocalDate()
   val triggerDate = Instant.ofEpochMilli(triggerAtMillis).atZone(zoneId).toLocalDate()

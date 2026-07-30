@@ -20,6 +20,19 @@ object AlarmScheduler {
     }
 
     val triggerAtMillis = computeNextTriggerMillis(config, fromEpochMillis)
+    scheduleOccurrence(context, config, triggerAtMillis)
+  }
+
+  fun scheduleOneShot(context: Context, config: StoredAlarmConfig, triggerAtMillis: Long) {
+    cancelUpcoming(context, config)
+    if (!config.enabled || triggerAtMillis <= System.currentTimeMillis()) {
+      AlarmStorage.setScheduledTriggerAt(context, 0L)
+      return
+    }
+    scheduleOccurrence(context, config, triggerAtMillis)
+  }
+
+  private fun scheduleOccurrence(context: Context, config: StoredAlarmConfig, triggerAtMillis: Long) {
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
       AlarmStorage.setScheduledTriggerAt(context, 0L)

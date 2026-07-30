@@ -3,6 +3,7 @@ package com.superalarm.app.alarm
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.superalarm.app.widget.SuperAlarmWidgetUpdater
 import java.time.Instant
 
 class AlarmReceiver : BroadcastReceiver() {
@@ -18,6 +19,7 @@ class AlarmReceiver : BroadcastReceiver() {
     if (backupStage == 0 && kind == "live") {
       AlarmScheduler.scheduleNextAfterTrigger(context, config, triggerAtMillis)
       AlarmStorage.setActiveTriggerAt(context, triggerAtMillis)
+      SuperAlarmWidgetUpdater.requestUpdate(context)
     }
 
     val launch = PendingAlarmLaunch(

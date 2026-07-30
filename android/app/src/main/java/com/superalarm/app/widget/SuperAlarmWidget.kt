@@ -49,16 +49,14 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextAlign
 import androidx.glance.text.FontWeight
 import androidx.glance.text.TextStyle
+import com.superalarm.app.MainApplication
 import com.superalarm.app.MainActivity
 import com.superalarm.app.R
 import com.superalarm.app.alarm.AlarmStorage
-import com.superalarm.app.data.SuperAlarmStore
-import com.superalarm.app.data.sleepWakeTimeMinutes
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import java.time.LocalTime
 import java.time.ZoneId
 
 class SuperAlarmWidget : GlanceAppWidget() {
@@ -79,6 +77,7 @@ class SuperAlarmWidget : GlanceAppWidget() {
         triggerAtMillis = AlarmStorage.getScheduledTriggerAt(context),
         nowMillis = System.currentTimeMillis(),
         zoneId = ZoneId.systemDefault(),
+        hasRepeatDays = config.repeatDays.isNotEmpty(),
       ),
       repeat = formatWidgetRepeatDays(config.repeatDays),
       enabled = config.enabled,
@@ -160,12 +159,8 @@ class SetSleepDurationAction : ActionCallback {
     parameters: ActionParameters,
   ) {
     val durationHours = parameters[DurationHoursKey]?.coerceIn(1, 24) ?: return
-    val now = LocalTime.now()
-    val nowMinutes = now.hour * 60 + now.minute
-    val targetMinutes = sleepWakeTimeMinutes(nowMinutes, durationHours * 60)
-    val store = SuperAlarmStore(context.applicationContext, recoverInterruptedRuntime = false)
-    store.setTime(targetMinutes)
-    val enabled = store.setEnabled(true)
+    val store = (context.applicationContext as MainApplication).store
+    val enabled = store.setSleepDuration(durationHours * 60)
     SuperAlarmWidget().updateAll(context)
 
     if (!enabled) {

@@ -21,7 +21,7 @@ class MainActivity : ComponentActivity() {
     setTheme(R.style.AppTheme)
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
-    store = SuperAlarmStore(applicationContext)
+    store = (application as MainApplication).store
     applyAlarmWindowFlags(intent)
     store.handleLaunchIntent(intent)
     setContent { SuperAlarmApp(store = store) }

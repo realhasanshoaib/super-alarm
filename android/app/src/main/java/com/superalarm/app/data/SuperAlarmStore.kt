@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONObject
 import java.io.File
 import java.time.Instant
+import java.time.ZonedDateTime
 import java.util.UUID
 
 class SuperAlarmStore(
@@ -71,6 +72,28 @@ class SuperAlarmStore(
       return false
     }
     mutateAlarm { it.copy(enabled = enabled) }
+    return true
+  }
+
+  fun setSleepDuration(durationMinutes: Int, now: ZonedDateTime = ZonedDateTime.now()): Boolean {
+    if (!_state.value.alarm.hasDismissalTarget()) {
+      addEvent("enable_blocked", "Add an allowed QR spot or object before enabling the alarm.")
+      return false
+    }
+
+    val trigger = now.plusMinutes(durationMinutes.coerceAtLeast(1).toLong())
+    val next = _state.value.copy(
+      alarm = _state.value.alarm.copy(
+        enabled = true,
+        timeMinutesLocal = trigger.hour * 60 + trigger.minute,
+      ).normalized(),
+    )
+    _state.value = next
+    saveState(next)
+    val stored = next.alarm.toStoredConfig()
+    AlarmStorage.saveAlarmConfig(context, stored)
+    AlarmScheduler.scheduleOneShot(context, stored, trigger.toInstant().toEpochMilli())
+    SuperAlarmWidgetUpdater.requestUpdate(context)
     return true
   }
 

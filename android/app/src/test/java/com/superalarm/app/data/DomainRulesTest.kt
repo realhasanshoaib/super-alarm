@@ -29,6 +29,10 @@ class DomainRulesTest {
       "Tomorrow · in 9h",
       formatWidgetAlarmStatus(true, trigger.toInstant().toEpochMilli(), now.toInstant().toEpochMilli(), zone),
     )
+    assertEquals(
+      "No repeat days · tap to set",
+      formatWidgetAlarmStatus(true, 0L, now.toInstant().toEpochMilli(), zone, hasRepeatDays = false),
+    )
     assertEquals("Weekdays", formatWidgetRepeatDays(listOf(1, 2, 3, 4, 5)))
     assertEquals("Every day", formatWidgetRepeatDays((0..6).toList()))
   }
