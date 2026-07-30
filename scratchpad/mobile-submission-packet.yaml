@@ -36,6 +36,7 @@ android:
   uploaded_tracks:
     - internal
     - beta
+    - alpha
     - production
   testing_opt_in_url: https://play.google.com/apps/testing/com.superalarm.app
   store_url: https://play.google.com/store/apps/details?id=com.superalarm.app
@@ -47,7 +48,7 @@ android:
   version_name: 1.3.0
   play: env:GOOGLE_APPLICATION_CREDENTIALS
   data_safety: ref:docs/play-data-safety.csv
-  result: "The M4 Mac mini completed check, bundleRelease, and assembleRelease for versionCode 10. The signed AAB matches Play's registered upload certificate, and gplay 0.8.0 preflight reports zero errors, three expected alarm/build-metadata warnings, and zero manifest, native library, billing, privacy, policy, or size findings. Google Play edit 13221479750487591018 uploaded the bundle with a matching SHA-256, validated successfully, and committed production release 1.3.0 (10) home screen widget as a completed full rollout. Hasan completed the separate managed-publishing action after Google approved the release. Play Console now reports Last published on 30 July 2026 with an empty ready-to-publish queue, and the Publisher API reports versionCode 10 completed on production."
+  result: "The M4 Mac mini completed check, bundleRelease, and assembleRelease for versionCode 10. The signed AAB matches Play's registered upload certificate, and gplay 0.8.0 preflight reports zero errors, three expected alarm/build-metadata warnings, and zero manifest, native library, billing, privacy, policy, or size findings. Google Play edit 13221479750487591018 uploaded the bundle with a matching SHA-256, validated successfully, and committed production release 1.3.0 (10) home screen widget as a completed full rollout. Hasan completed the separate managed-publishing action after Google approved the production release. Play edit 06963178005294435260 then aligned internal, open, and closed Alpha testing with versionCode 10. After Google approved the tester-track changes, the managed-publishing action completed all three changes. Play Console confirmed Changes published with an empty ready-to-publish queue, and a fresh Publisher API snapshot reports versionCode 10 completed on production, beta, alpha, and internal."
   foreground_service_video: store/media/google-play/foreground-service-media-playback-demo-vc6-20260711.mp4
   foreground_service_video_sha256: 2caf796839fdefe943b74788d109572b33f3e496a4c886f788bd511b5db859fc
   foreground_service_video_url: https://youtube.com/shorts/EZVvp7KBpHg?feature=share
@@ -78,5 +79,5 @@ blockers:
 risks:
   - "Native migration real-device QA is still needed for lock-screen/full-screen alarm behavior, camera QR scanning, notification permissions, haptics/vibration, and accessibility."
   - "Android production versionCode 10 is published, but Play Store propagation can take time before every device sees the update."
-  - "Beta remains on versionCode 6 and internal testing remains on versionCode 5; neither older release should be promoted over production versionCode 10."
+  - "Production, open testing, closed Alpha testing, and internal testing all point to versionCode 10; future releases must keep their version codes monotonic when moving between tracks."
   - "iOS uses scheduled local notifications, not Android-style full-screen exact alarms; Critical Alerts improve notification delivery but do not create an Android-style background ringing service."
