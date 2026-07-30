@@ -5,16 +5,20 @@ import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.graphics.RectF
 import android.os.SystemClock
+import android.util.Size
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
@@ -33,6 +37,7 @@ import java.io.ByteArrayOutputStream
 import java.io.Closeable
 import java.util.TreeMap
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 
 enum class ObjectFrameIssue(val message: String) {
   TooDark("More light needed"),
@@ -52,6 +57,7 @@ data class ObjectFrameSample(
 fun ObjectCameraView(
   modifier: Modifier = Modifier,
   captureThumbnail: Boolean = false,
+  torchEnabled: Boolean = false,
   onFrame: (ObjectFrameSample) -> Unit,
   onError: (String) -> Unit,
 ) {
@@ -70,6 +76,10 @@ fun ObjectCameraView(
         ContextCompat.getMainExecutor(context).execute { currentOnError.value(error) }
       },
     )
+  }
+
+  LaunchedEffect(controller, torchEnabled) {
+    controller.setTorchEnabled(torchEnabled)
   }
 
   AndroidView(
@@ -99,8 +109,10 @@ private class ObjectCameraController(
   private val analyzer = ObjectFrameAnalyzer(context, captureThumbnail, onFrame, onError)
   @Volatile private var closed = false
   private var provider: ProcessCameraProvider? = null
+  private var camera: Camera? = null
   private var preview: Preview? = null
   private var analysis: ImageAnalysis? = null
+  @Volatile private var torchEnabled = false
 
   fun start(previewView: PreviewView, lifecycleOwner: androidx.lifecycle.LifecycleOwner) {
     val providerFuture = ProcessCameraProvider.getInstance(context)
@@ -108,28 +120,37 @@ private class ObjectCameraController(
       if (closed) return@addListener
       runCatching {
         val cameraProvider = providerFuture.get()
-        val resolutionSelector = ResolutionSelector.Builder()
+        val previewResolutionSelector = ResolutionSelector.Builder()
           .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
           .build()
+        val analysisResolutionSelector = ResolutionSelector.Builder()
+          .setResolutionStrategy(
+            ResolutionStrategy(
+              ANALYSIS_RESOLUTION,
+              ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER,
+            ),
+          )
+          .build()
         val nextPreview = Preview.Builder()
-          .setResolutionSelector(resolutionSelector)
+          .setResolutionSelector(previewResolutionSelector)
           .build()
           .also {
           it.setSurfaceProvider(previewView.surfaceProvider)
         }
         val nextAnalysis = ImageAnalysis.Builder()
-          .setResolutionSelector(resolutionSelector)
+          .setResolutionSelector(analysisResolutionSelector)
           .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
           .build()
           .also { it.setAnalyzer(executor, analyzer) }
 
         cameraProvider.unbindAll()
-        cameraProvider.bindToLifecycle(
+        camera = cameraProvider.bindToLifecycle(
           lifecycleOwner,
           CameraSelector.DEFAULT_BACK_CAMERA,
           nextPreview,
           nextAnalysis,
         )
+        applyTorch()
         provider = cameraProvider
         preview = nextPreview
         analysis = nextAnalysis
@@ -143,14 +164,31 @@ private class ObjectCameraController(
     analyzer.updateViewport(width, height)
   }
 
+  fun setTorchEnabled(enabled: Boolean) {
+    torchEnabled = enabled
+    ContextCompat.getMainExecutor(context).execute(::applyTorch)
+  }
+
+  private fun applyTorch() {
+    val boundCamera = camera ?: return
+    if (boundCamera.cameraInfo.hasFlashUnit()) {
+      boundCamera.cameraControl.enableTorch(torchEnabled)
+    }
+  }
+
   override fun close() {
     if (closed) return
     closed = true
     analysis?.clearAnalyzer()
     val bound = listOfNotNull(preview, analysis)
     if (bound.isNotEmpty()) provider?.unbind(*bound.toTypedArray())
+    camera = null
     executor.execute(analyzer::close)
     executor.shutdown()
+  }
+
+  companion object {
+    private val ANALYSIS_RESOLUTION = Size(640, 480)
   }
 }
 
@@ -163,6 +201,7 @@ private class ObjectFrameAnalyzer(
   private var engine: ObjectImageEmbedder? = null
   private var lastAnalyzedAt = 0L
   private var failed = false
+  private val frameInFlight = AtomicBoolean(false)
   @Volatile private var viewportWidth = 0
   @Volatile private var viewportHeight = 0
 
@@ -181,7 +220,13 @@ private class ObjectFrameAnalyzer(
 
   private fun analyzeFrame(image: ImageProxy) {
     val now = SystemClock.elapsedRealtime()
-    if (failed || now - lastAnalyzedAt < FRAME_INTERVAL_MILLIS) return
+    if (
+      failed ||
+      now - lastAnalyzedAt < FRAME_INTERVAL_MILLIS ||
+      !frameInFlight.compareAndSet(false, true)
+    ) {
+      return
+    }
     lastAnalyzedAt = now
 
     runCatching {
@@ -194,6 +239,7 @@ private class ObjectFrameAnalyzer(
       )
       val quality = image.frameQuality(guideRegion)
       if (quality.issue != null) {
+        frameInFlight.set(false)
         ObjectFrameSample(embedding = null, issue = quality.issue, capturedAt = now)
       } else {
         imageEmbedder().embedAsync(
@@ -206,6 +252,7 @@ private class ObjectFrameAnalyzer(
         null
       }
     }.onSuccess { sample -> sample?.let(onFrame) }.onFailure {
+      frameInFlight.set(false)
       failed = true
       onError(it.message ?: "Object recognition could not start")
     }
@@ -216,10 +263,16 @@ private class ObjectFrameAnalyzer(
   }
 
   private fun imageEmbedder(): ObjectImageEmbedder =
-    engine ?: ObjectImageEmbedder(context, captureThumbnail, onFrame, onError).also { engine = it }
+    engine ?: ObjectImageEmbedder(
+      context = context,
+      captureThumbnail = captureThumbnail,
+      onFrame = onFrame,
+      onComplete = { frameInFlight.set(false) },
+      onError = onError,
+    ).also { engine = it }
 
   companion object {
-    private const val FRAME_INTERVAL_MILLIS = 100L
+    private const val FRAME_INTERVAL_MILLIS = 180L
   }
 }
 
@@ -227,6 +280,7 @@ private class ObjectImageEmbedder(
   context: Context,
   private val captureThumbnail: Boolean,
   private val onFrame: (ObjectFrameSample) -> Unit,
+  private val onComplete: () -> Unit,
   private val onError: (String) -> Unit,
 ) : Closeable {
   private val pendingFrames = TreeMap<Long, PendingFrame>()
@@ -242,6 +296,7 @@ private class ObjectImageEmbedder(
         val embedding = result.embeddingResult().embeddings().first().quantizedEmbedding()
         val pendingFrame = synchronized(pendingFrames) { pendingFrames[capturedAt] }
         releaseFramesThrough(capturedAt)
+        onComplete()
         onFrame(
           ObjectFrameSample(
             embedding = ObjectEmbeddings.encode(embedding),
@@ -254,6 +309,7 @@ private class ObjectImageEmbedder(
       }
       .setErrorListener { error ->
         releaseAllFrames()
+        onComplete()
         onError(error.message ?: "Object recognition could not start")
       }
       .build(),

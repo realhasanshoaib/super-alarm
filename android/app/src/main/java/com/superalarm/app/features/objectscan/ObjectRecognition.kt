@@ -19,6 +19,8 @@ class ObjectMatchTracker(
   targets: List<ObjectTarget>,
   private val threshold: Double = DEFAULT_SIMILARITY_THRESHOLD,
   private val requiredFrames: Int = REQUIRED_MATCHES,
+  private val fallbackThreshold: Double = threshold - FALLBACK_THRESHOLD_DELTA,
+  private val fallbackRequiredFrames: Int = requiredFrames + FALLBACK_MATCHES,
 ) {
   private val references = targets.map { target ->
     TargetReferences(target, target.embeddings.mapNotNull(ObjectEmbeddings::decode))
@@ -36,19 +38,24 @@ class ObjectMatchTracker(
       }
       .maxByOrNull(TargetScore::similarity)
 
-    if (best == null || best.similarity < threshold) {
-      recordMatch(null, frameAt)
+    if (best == null || best.similarity < fallbackThreshold) {
+      recordMatch(null, best?.similarity ?: 0.0, frameAt)
       return ObjectMatchProgress(null, null, best?.similarity ?: 0.0, 0, requiredFrames)
     }
 
-    recordMatch(best.target.id, frameAt)
-    val matchingFrames = recentMatches.count { it.targetId == best.target.id }
+    recordMatch(best.target.id, best.similarity, frameAt)
+    val strongMatch = best.similarity >= threshold
+    val acceptedThreshold = if (strongMatch) threshold else fallbackThreshold
+    val acceptedFrames = if (strongMatch) requiredFrames else fallbackRequiredFrames
+    val matchingFrames = recentMatches.takeLast(acceptedFrames + MATCH_WINDOW_PADDING).count {
+      it.targetId == best.target.id && it.similarity >= acceptedThreshold
+    }
     return ObjectMatchProgress(
       targetId = best.target.id,
       targetLabel = best.target.label,
       similarity = best.similarity,
       matchingFrames = matchingFrames,
-      requiredFrames = requiredFrames,
+      requiredFrames = acceptedFrames,
     )
   }
 
@@ -56,10 +63,10 @@ class ObjectMatchTracker(
     recentMatches.clear()
   }
 
-  private fun recordMatch(targetId: String?, frameAt: Long) {
-    recentMatches.addLast(TimedMatch(targetId, frameAt))
+  private fun recordMatch(targetId: String?, similarity: Double, frameAt: Long) {
+    recentMatches.addLast(TimedMatch(targetId, similarity, frameAt))
     while (
-      recentMatches.size > MATCH_WINDOW_SIZE ||
+      recentMatches.size > maxOf(requiredFrames, fallbackRequiredFrames) + MATCH_WINDOW_PADDING ||
       frameAt - recentMatches.first().frameAt > MAX_MATCH_WINDOW_MILLIS
     ) {
       recentMatches.removeFirst()
@@ -68,13 +75,15 @@ class ObjectMatchTracker(
 
   private data class TargetReferences(val target: ObjectTarget, val embeddings: List<ByteArray>)
   private data class TargetScore(val target: ObjectTarget, val similarity: Double)
-  private data class TimedMatch(val targetId: String?, val frameAt: Long)
+  private data class TimedMatch(val targetId: String?, val similarity: Double, val frameAt: Long)
 
   companion object {
     const val DEFAULT_SIMILARITY_THRESHOLD = 0.72
     const val REQUIRED_MATCHES = 2
-    private const val MATCH_WINDOW_SIZE = 3
-    private const val MAX_MATCH_WINDOW_MILLIS = 650L
+    private const val FALLBACK_THRESHOLD_DELTA = 0.08
+    private const val FALLBACK_MATCHES = 2
+    private const val MATCH_WINDOW_PADDING = 1
+    private const val MAX_MATCH_WINDOW_MILLIS = 1_500L
   }
 }
 

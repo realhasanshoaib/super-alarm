@@ -1,5 +1,6 @@
 package com.superalarm.app.features.objectscan
 
+import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -39,13 +40,14 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.superalarm.app.data.ObjectTarget
+import kotlinx.coroutines.delay
 
 private val enrollmentSteps = listOf(
   "Center the object inside the ring",
   "Move slowly to the left",
   "Sweep slowly to the right",
   "Raise the phone a little",
-  "Lower the phone a little",
+  "Hold steady while the light adjusts",
   "Move closer to a distinctive detail",
   "Ease back to show the whole object",
   "Hold steady to finish",
@@ -67,11 +69,17 @@ fun ObjectEnrollmentScreen(
   var error by remember { mutableStateOf<String?>(null) }
   val haptics = LocalHapticFeedback.current
   val step = capturedEmbeddings.size.coerceAtMost(enrollmentSteps.lastIndex)
+  val torchEnabled = capturedEmbeddings.size >= TORCH_ENROLLMENT_START_VIEW
   val frameEmbedding = currentFrame?.embedding
   val viewSimilarity = frameEmbedding?.let { embedding ->
     capturedEmbeddings.lastOrNull()?.let { ObjectEmbeddings.cosineSimilarity(it, embedding) }
   }
   val distinctView = viewSimilarity == null || viewSimilarity < MAX_ENROLLMENT_VIEW_SIMILARITY
+
+  LaunchedEffect(torchEnabled) {
+    currentFrame = null
+    lastCaptureAt = SystemClock.elapsedRealtime() + TORCH_SETTLE_MILLIS
+  }
 
   LaunchedEffect(currentFrame?.capturedAt) {
     val sample = currentFrame ?: return@LaunchedEffect
@@ -103,6 +111,7 @@ fun ObjectEnrollmentScreen(
     ObjectCameraView(
       modifier = Modifier.fillMaxSize(),
       captureThumbnail = true,
+      torchEnabled = torchEnabled,
       onFrame = { sample ->
         sample.thumbnailJpeg?.let { thumbnail ->
           latestThumbnailJpeg = thumbnail
@@ -122,7 +131,11 @@ fun ObjectEnrollmentScreen(
     ScanTopBar(title = "Scan $label", onClose = onCancel)
     ScanPanel(
       modifier = Modifier.align(Alignment.BottomCenter),
-      title = if (capturedEmbeddings.isEmpty()) "Look at $label" else "Keep moving slowly",
+      title = when {
+        capturedEmbeddings.isEmpty() -> "Look at $label"
+        torchEnabled -> "Learning it in a second light"
+        else -> "Keep moving slowly"
+      },
       instruction = error
         ?: currentFrame?.issue?.message
         ?: if (frameEmbedding != null && !distinctView) "Move a little farther in that direction" else enrollmentSteps[step],
@@ -145,12 +158,28 @@ fun ObjectDismissalScreen(
   var issue by remember { mutableStateOf<ObjectFrameIssue?>(null) }
   var error by remember { mutableStateOf<String?>(null) }
   var completed by remember { mutableStateOf(false) }
+  var torchEnabled by remember { mutableStateOf(false) }
+  var torchBlockedByGlare by remember { mutableStateOf(false) }
+
+  LaunchedEffect(completed) {
+    if (!completed) {
+      delay(AUTO_TORCH_DELAY_MILLIS)
+      if (!torchBlockedByGlare) torchEnabled = true
+    }
+  }
 
   Box(Modifier.fillMaxSize().background(Color.Black)) {
     ObjectCameraView(
       modifier = Modifier.fillMaxSize(),
+      torchEnabled = torchEnabled,
       onFrame = { sample ->
         issue = sample.issue
+        if (sample.issue == ObjectFrameIssue.TooDark && !torchBlockedByGlare) {
+          torchEnabled = true
+        } else if (sample.issue == ObjectFrameIssue.TooBright && torchEnabled) {
+          torchEnabled = false
+          torchBlockedByGlare = true
+        }
         val embedding = sample.embedding
         if (embedding != null && !completed) {
           progress = tracker.accept(embedding, sample.capturedAt)
@@ -177,6 +206,8 @@ fun ObjectDismissalScreen(
         ?: issue?.message
         ?: if (progress.matchingFrames > 0) {
           "${(progress.similarity * 100).toInt()}% match · hold steady"
+        } else if (torchEnabled) {
+          "Adding light · fill the square and move slowly"
         } else {
           "Stand about an arm's length away, fill the square, then move slowly"
         },
@@ -188,7 +219,10 @@ fun ObjectDismissalScreen(
 private const val MAX_ENROLLMENT_VIEW_SIMILARITY = 0.998
 private const val AUTO_CAPTURE_INTERVAL_MILLIS = 325L
 private const val AUTO_CAPTURE_FALLBACK_MILLIS = 900L
-private const val SAVED_ENROLLMENT_VIEWS = 5
+private const val SAVED_ENROLLMENT_VIEWS = 6
+private const val TORCH_ENROLLMENT_START_VIEW = 4
+private const val TORCH_SETTLE_MILLIS = 600L
+private const val AUTO_TORCH_DELAY_MILLIS = 1_200L
 
 @Composable
 private fun ScanGuide(color: Color, progress: Float) {

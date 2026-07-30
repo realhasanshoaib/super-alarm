@@ -64,6 +64,41 @@ class DomainRulesTest {
   }
 
   @Test
+  fun objectMatchRequiresMoreFramesAtFallbackConfidence() {
+    val reference = ObjectEmbeddings.encode(byteArrayOf(100, 0, 0))
+    val lowerConfidence = ObjectEmbeddings.encode(byteArrayOf(72, 69, 0))
+    val target = ObjectTarget(id = "fridge", label = "Fridge", embeddings = listOf(reference))
+    val tracker = ObjectMatchTracker(
+      targets = listOf(target),
+      threshold = 0.9,
+      requiredFrames = 2,
+      fallbackThreshold = 0.7,
+      fallbackRequiredFrames = 4,
+    )
+
+    assertFalse(tracker.accept(lowerConfidence, frameAt = 100).accepted)
+    assertFalse(tracker.accept(lowerConfidence, frameAt = 300).accepted)
+    assertFalse(tracker.accept(lowerConfidence, frameAt = 500).accepted)
+    assertTrue(tracker.accept(lowerConfidence, frameAt = 700).accepted)
+  }
+
+  @Test
+  fun objectMatchRejectsFramesBelowFallbackConfidence() {
+    val reference = ObjectEmbeddings.encode(byteArrayOf(100, 0, 0))
+    val mismatch = ObjectEmbeddings.encode(byteArrayOf(0, 100, 0))
+    val target = ObjectTarget(id = "fridge", label = "Fridge", embeddings = listOf(reference))
+    val tracker = ObjectMatchTracker(
+      targets = listOf(target),
+      fallbackThreshold = 0.6,
+      fallbackRequiredFrames = 4,
+    )
+
+    repeat(5) { index ->
+      assertFalse(tracker.accept(mismatch, frameAt = index * 200L).accepted)
+    }
+  }
+
+  @Test
   fun diverseEnrollmentSelectionKeepsRequestedCount() {
     val embeddings = listOf(
       byteArrayOf(100, 0, 0),

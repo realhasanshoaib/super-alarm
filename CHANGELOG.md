@@ -17,3 +17,4 @@
 - Tightened the alarm header, aligned control rows, normalized section typography, kept scanner controls clear of system bars, and made Android Back close scanners.
 - Replaced raw recent-attempt records with readable alarm results, local times, and dismissal-target names.
 - Restricted alarm restore broadcasts to Android system delivery.
+- Made object enrollment learn both ambient and phone-lit views, added a controlled-light dismissal fallback, and reduced scanner work on entry-level Android phones.
