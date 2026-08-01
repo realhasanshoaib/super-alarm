@@ -1,0 +1,1751 @@
+<div id="alarmkit-preview">
+  <style>
+    #alarmkit-preview {
+      --akp-page: #efeee9;
+      --akp-page-deep: #e6e4de;
+      --akp-ink: #171717;
+      --akp-muted: #787875;
+      --akp-border: rgba(20, 20, 18, 0.12);
+      --akp-orange: #ff8917;
+      --akp-orange-deep: #d86100;
+      --akp-orange-soft: #fff0df;
+      --akp-green: #55c58a;
+      --akp-red: #e66f64;
+      --akp-phone: #090a0b;
+      --akp-phone-muted: rgba(255, 255, 255, 0.62);
+      --akp-phone-line: rgba(255, 255, 255, 0.13);
+      color: var(--akp-ink);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", Helvetica, Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.35;
+      box-sizing: border-box;
+      width: 100%;
+    }
+
+    #alarmkit-preview *,
+    #alarmkit-preview *::before,
+    #alarmkit-preview *::after {
+      box-sizing: border-box;
+    }
+
+    #alarmkit-preview button {
+      border: 0;
+      font: inherit;
+    }
+
+    #alarmkit-preview button:focus-visible {
+      outline: 3px solid rgba(255, 137, 23, 0.45);
+      outline-offset: 3px;
+    }
+
+    .akp-page {
+      background:
+        radial-gradient(circle at 14% 4%, rgba(255, 255, 255, 0.76), transparent 30%),
+        linear-gradient(135deg, var(--akp-page), var(--akp-page-deep));
+      border: 1px solid rgba(20, 20, 18, 0.08);
+      border-radius: 28px;
+      padding: 22px;
+      overflow: hidden;
+    }
+
+    .akp-header,
+    .akp-brand,
+    .akp-header-actions,
+    .akp-progress,
+    .akp-layout,
+    .akp-stage-header,
+    .akp-stage-footer,
+    .akp-phone-status,
+    .akp-phone-nav,
+    .akp-app-nav,
+    .akp-alarm-identity,
+    .akp-system-row,
+    .akp-allowed-row,
+    .akp-tabs,
+    .akp-list-row,
+    .akp-setting-row,
+    .akp-scanner-top,
+    .akp-scanner-corners,
+    .akp-step-row,
+    .akp-api-row {
+      display: flex;
+      align-items: center;
+    }
+
+    .akp-header {
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 20px;
+    }
+
+    .akp-brand {
+      gap: 11px;
+      min-width: 0;
+    }
+
+    .akp-brand-mark {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      object-fit: cover;
+      box-shadow: 0 5px 15px rgba(16, 20, 54, 0.16);
+      flex: 0 0 auto;
+    }
+
+    .akp-brand-copy {
+      min-width: 0;
+    }
+
+    .akp-brand-copy strong,
+    .akp-brand-copy span {
+      display: block;
+    }
+
+    .akp-brand-copy strong {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .akp-brand-copy span {
+      color: var(--akp-muted);
+      font-size: 12px;
+      margin-top: 1px;
+    }
+
+    .akp-header-actions {
+      gap: 8px;
+      flex: 0 0 auto;
+    }
+
+    .akp-header-button,
+    .akp-replay-button {
+      align-items: center;
+      background: rgba(255, 255, 255, 0.65);
+      border: 1px solid var(--akp-border);
+      border-radius: 999px;
+      color: var(--akp-ink);
+      cursor: pointer;
+      display: inline-flex;
+      gap: 7px;
+      justify-content: center;
+      min-height: 38px;
+      padding: 8px 13px;
+      transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
+    }
+
+    .akp-header-button:hover,
+    .akp-replay-button:hover {
+      background: rgba(255, 255, 255, 0.92);
+      border-color: rgba(20, 20, 18, 0.2);
+      transform: translateY(-1px);
+    }
+
+    .akp-header-button.primary,
+    .akp-replay-button {
+      background: var(--akp-orange);
+      border-color: var(--akp-orange);
+      color: #211205;
+      font-weight: 600;
+    }
+
+    .akp-header-button.primary:hover,
+    .akp-replay-button:hover {
+      background: #ff9a38;
+      border-color: #ff9a38;
+    }
+
+    .akp-progress {
+      background: rgba(255, 255, 255, 0.48);
+      border: 1px solid var(--akp-border);
+      border-radius: 16px;
+      gap: 5px;
+      margin-bottom: 18px;
+      padding: 5px;
+    }
+
+    .akp-step {
+      background: transparent;
+      border-radius: 11px;
+      color: var(--akp-muted);
+      cursor: pointer;
+      flex: 1 1 0;
+      min-height: 38px;
+      padding: 7px 9px;
+      text-align: left;
+      transition: background 150ms ease, color 150ms ease;
+    }
+
+    .akp-step:hover {
+      color: var(--akp-ink);
+    }
+
+    .akp-step.is-active {
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 2px 8px rgba(20, 20, 18, 0.07);
+      color: var(--akp-ink);
+    }
+
+    .akp-step-number {
+      align-items: center;
+      background: rgba(20, 20, 18, 0.1);
+      border-radius: 50%;
+      display: inline-flex;
+      font-size: 11px;
+      height: 21px;
+      justify-content: center;
+      margin-right: 6px;
+      width: 21px;
+    }
+
+    .akp-step.is-active .akp-step-number {
+      background: var(--akp-orange);
+    }
+
+    .akp-step-label {
+      font-size: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .akp-layout {
+      align-items: stretch;
+      gap: 18px;
+    }
+
+    .akp-rail {
+      display: flex;
+      flex: 0 0 265px;
+      flex-direction: column;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .akp-panel {
+      background: rgba(255, 255, 255, 0.58);
+      border: 1px solid var(--akp-border);
+      border-radius: 20px;
+      box-shadow: 0 10px 26px rgba(31, 29, 24, 0.06);
+      padding: 16px;
+    }
+
+    .akp-eyebrow {
+      color: var(--akp-muted);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      margin: 0 0 5px;
+      text-transform: uppercase;
+    }
+
+    .akp-rail h1,
+    .akp-stage-header h2 {
+      letter-spacing: -0.035em;
+      margin: 0;
+    }
+
+    .akp-rail h1 {
+      font-size: 22px;
+      font-weight: 500;
+    }
+
+    .akp-rail-intro {
+      color: var(--akp-muted);
+      font-size: 13px;
+      margin: 8px 0 0;
+    }
+
+    .akp-step-row {
+      background: transparent;
+      border-radius: 13px;
+      cursor: pointer;
+      gap: 10px;
+      margin: 3px 0;
+      padding: 9px 8px;
+      text-align: left;
+      width: 100%;
+    }
+
+    .akp-step-row:hover {
+      background: rgba(255, 255, 255, 0.7);
+    }
+
+    .akp-step-row.is-active {
+      background: var(--akp-orange-soft);
+    }
+
+    .akp-step-row-icon {
+      align-items: center;
+      background: rgba(20, 20, 18, 0.08);
+      border-radius: 9px;
+      color: var(--akp-muted);
+      display: inline-flex;
+      flex: 0 0 auto;
+      height: 32px;
+      justify-content: center;
+      width: 32px;
+    }
+
+    .akp-step-row.is-active .akp-step-row-icon {
+      background: var(--akp-orange);
+      color: #2b1605;
+    }
+
+    .akp-step-row-copy {
+      min-width: 0;
+    }
+
+    .akp-step-row-copy strong,
+    .akp-step-row-copy span {
+      display: block;
+    }
+
+    .akp-step-row-copy strong {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .akp-step-row-copy span {
+      color: var(--akp-muted);
+      font-size: 11px;
+      margin-top: 2px;
+    }
+
+    .akp-api-list {
+      display: grid;
+      gap: 9px;
+      margin-top: 13px;
+    }
+
+    .akp-api-row {
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .akp-api-dot {
+      background: var(--akp-orange);
+      border-radius: 50%;
+      flex: 0 0 auto;
+      height: 6px;
+      margin-top: 6px;
+      width: 6px;
+    }
+
+    .akp-api-row code {
+      color: #4d493e;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 11px;
+      overflow-wrap: anywhere;
+    }
+
+    .akp-caveat {
+      background: rgba(255, 240, 223, 0.8);
+      border: 1px solid rgba(216, 97, 0, 0.17);
+      border-radius: 16px;
+      color: #6e3a10;
+      font-size: 12px;
+      line-height: 1.45;
+      margin-top: auto;
+      padding: 13px;
+    }
+
+    .akp-caveat strong {
+      display: block;
+      font-size: 12px;
+      margin-bottom: 3px;
+    }
+
+    .akp-stage {
+      background: rgba(255, 255, 255, 0.44);
+      border: 1px solid var(--akp-border);
+      border-radius: 24px;
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      min-width: 0;
+      padding: 18px;
+    }
+
+    .akp-stage-header {
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .akp-stage-header h2 {
+      font-size: 17px;
+      font-weight: 500;
+    }
+
+    .akp-stage-header p {
+      color: var(--akp-muted);
+      font-size: 12px;
+      margin: 4px 0 0;
+    }
+
+    .akp-stage-state {
+      background: rgba(20, 20, 18, 0.07);
+      border-radius: 999px;
+      color: var(--akp-muted);
+      flex: 0 0 auto;
+      font-size: 11px;
+      padding: 7px 10px;
+      white-space: nowrap;
+    }
+
+    .akp-phone-wrap {
+      align-items: center;
+      display: flex;
+      flex: 1 1 auto;
+      justify-content: center;
+      min-height: 610px;
+    }
+
+    .akp-phone {
+      background: #1d1e21;
+      border: 6px solid #17181a;
+      border-radius: 42px;
+      box-shadow:
+        0 28px 48px rgba(18, 17, 14, 0.22),
+        0 0 0 1px rgba(255, 255, 255, 0.4) inset,
+        0 0 0 5px rgba(16, 16, 14, 0.08);
+      max-width: 390px;
+      overflow: hidden;
+      position: relative;
+      width: min(100%, 390px);
+      aspect-ratio: 390 / 844;
+    }
+
+    .akp-phone::after {
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 36px;
+      content: "";
+      inset: 0;
+      pointer-events: none;
+      position: absolute;
+      z-index: 10;
+    }
+
+    .akp-phone-screen {
+      height: 100%;
+      overflow: hidden;
+      position: relative;
+      width: 100%;
+    }
+
+    .akp-phone-status {
+      color: currentColor;
+      font-size: 11px;
+      font-weight: 600;
+      justify-content: space-between;
+      left: 0;
+      padding: 12px 24px 0;
+      position: absolute;
+      right: 0;
+      top: 0;
+      z-index: 5;
+    }
+
+    .akp-status-icons {
+      align-items: center;
+      display: flex;
+      gap: 5px;
+    }
+
+    .akp-signal {
+      align-items: end;
+      display: inline-flex;
+      gap: 2px;
+      height: 9px;
+    }
+
+    .akp-signal i {
+      background: currentColor;
+      border-radius: 1px;
+      display: inline-block;
+      width: 2px;
+    }
+
+    .akp-signal i:nth-child(1) { height: 3px; }
+    .akp-signal i:nth-child(2) { height: 5px; }
+    .akp-signal i:nth-child(3) { height: 7px; }
+    .akp-signal i:nth-child(4) { height: 9px; }
+
+    .akp-wifi {
+      border: 1.5px solid currentColor;
+      border-bottom-color: transparent;
+      border-left-color: transparent;
+      border-radius: 50%;
+      height: 9px;
+      transform: rotate(-45deg);
+      width: 9px;
+    }
+
+    .akp-battery {
+      border: 1px solid currentColor;
+      border-radius: 2px;
+      height: 8px;
+      padding: 1px;
+      position: relative;
+      width: 16px;
+    }
+
+    .akp-battery::before {
+      background: currentColor;
+      border-radius: 1px;
+      content: "";
+      inset: 1px 3px 1px 1px;
+      position: absolute;
+    }
+
+    .akp-battery::after {
+      background: currentColor;
+      border-radius: 0 1px 1px 0;
+      content: "";
+      height: 3px;
+      position: absolute;
+      right: -3px;
+      top: 2px;
+      width: 2px;
+    }
+
+    .akp-phone-nav {
+      gap: 12px;
+      justify-content: space-between;
+      padding: 42px 20px 12px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .akp-phone-nav-title {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .akp-phone-nav-button {
+      align-items: center;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(20, 20, 18, 0.08);
+      border-radius: 50%;
+      color: var(--akp-ink);
+      cursor: pointer;
+      display: inline-flex;
+      height: 30px;
+      justify-content: center;
+      width: 30px;
+    }
+
+    .akp-setup-screen {
+      background: #f8f8f6;
+      color: #161616;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .akp-setup-body {
+      height: calc(100% - 127px);
+      overflow: hidden;
+      padding: 0 20px 20px;
+    }
+
+    .akp-dial {
+      align-items: center;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(20, 20, 18, 0.08);
+      border-radius: 50%;
+      box-shadow: 0 12px 26px rgba(30, 28, 22, 0.09);
+      display: flex;
+      height: 215px;
+      justify-content: center;
+      margin: 1px auto 7px;
+      position: relative;
+      width: 215px;
+    }
+
+    .akp-dial::before {
+      border: 2px solid rgba(20, 20, 18, 0.12);
+      border-radius: 50%;
+      content: "";
+      inset: 13px;
+      position: absolute;
+    }
+
+    .akp-dial::after {
+      border: 3px solid var(--akp-orange);
+      border-bottom-color: transparent;
+      border-left-color: transparent;
+      border-radius: 50%;
+      content: "";
+      inset: 3px;
+      position: absolute;
+      transform: rotate(25deg);
+    }
+
+    .akp-dial-ticks {
+      inset: 16px;
+      position: absolute;
+    }
+
+    .akp-dial-tick {
+      background: rgba(20, 20, 18, 0.28);
+      height: 6px;
+      left: calc(50% - 0.5px);
+      position: absolute;
+      top: 0;
+      transform-origin: 0.5px 92px;
+      width: 1px;
+    }
+
+    .akp-dial-tick:nth-child(5n + 1) {
+      background: rgba(20, 20, 18, 0.64);
+      height: 10px;
+      width: 2px;
+    }
+
+    .akp-dial-content {
+      position: relative;
+      text-align: center;
+      z-index: 1;
+    }
+
+    .akp-dial-icon {
+      color: var(--akp-orange);
+      display: block;
+      margin: 0 auto 4px;
+    }
+
+    .akp-dial-time {
+      font-size: 43px;
+      font-weight: 300;
+      letter-spacing: -0.08em;
+      line-height: 1;
+    }
+
+    .akp-dial-meridiem {
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      margin-top: 5px;
+    }
+
+    .akp-next-alarm {
+      color: #757571;
+      font-size: 12px;
+      margin: 0 0 14px;
+      text-align: center;
+    }
+
+    .akp-ios-card {
+      background: rgba(255, 255, 255, 0.93);
+      border: 1px solid rgba(20, 20, 18, 0.08);
+      border-radius: 17px;
+      box-shadow: 0 4px 12px rgba(20, 20, 18, 0.04);
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+
+    .akp-setting-row,
+    .akp-list-row {
+      gap: 10px;
+      min-height: 45px;
+      padding: 8px 13px;
+    }
+
+    .akp-setting-row + .akp-setting-row,
+    .akp-list-row + .akp-list-row {
+      border-top: 1px solid rgba(20, 20, 18, 0.08);
+    }
+
+    .akp-setting-row > span:first-child,
+    .akp-list-row-copy {
+      min-width: 0;
+    }
+
+    .akp-setting-value,
+    .akp-list-row-copy small {
+      color: #7a7973;
+      font-size: 11px;
+      margin-left: auto;
+      text-align: right;
+    }
+
+    .akp-toggle {
+      background: var(--akp-orange);
+      border-radius: 999px;
+      height: 23px;
+      margin-left: auto;
+      padding: 3px;
+      width: 39px;
+    }
+
+    .akp-toggle::after {
+      background: #fff;
+      border-radius: 50%;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+      content: "";
+      display: block;
+      height: 17px;
+      margin-left: 16px;
+      width: 17px;
+    }
+
+    .akp-card-heading {
+      color: #757571;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      padding: 12px 13px 5px;
+      text-transform: uppercase;
+    }
+
+    .akp-day-row {
+      display: flex;
+      gap: 4px;
+      padding: 5px 13px 12px;
+    }
+
+    .akp-day {
+      align-items: center;
+      background: var(--akp-orange);
+      border-radius: 7px;
+      color: #2d1805;
+      display: flex;
+      flex: 1;
+      font-size: 10px;
+      font-weight: 600;
+      height: 24px;
+      justify-content: center;
+    }
+
+    .akp-day.off {
+      background: #f5f5f3;
+      border: 1px solid rgba(20, 20, 18, 0.12);
+      color: #77756e;
+    }
+
+    .akp-list-row-icon {
+      color: var(--akp-orange);
+      flex: 0 0 auto;
+    }
+
+    .akp-list-row-copy strong,
+    .akp-list-row-copy small {
+      display: block;
+    }
+
+    .akp-list-row-copy strong {
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .akp-list-row-copy small {
+      margin: 2px 0 0;
+      text-align: left;
+    }
+
+    .akp-chevron {
+      color: #a4a29b;
+      margin-left: auto;
+    }
+
+    .akp-tabs {
+      background: rgba(255, 255, 255, 0.92);
+      bottom: 0;
+      height: 65px;
+      justify-content: space-around;
+      left: 0;
+      position: absolute;
+      right: 0;
+    }
+
+    .akp-tab {
+      color: #8b8982;
+      font-size: 10px;
+      text-align: center;
+    }
+
+    .akp-tab strong {
+      color: var(--akp-orange);
+      display: block;
+      font-size: 19px;
+      font-weight: 400;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .akp-alarm-screen {
+      background:
+        radial-gradient(circle at 49% 38%, rgba(52, 55, 58, 0.36), transparent 36%),
+        linear-gradient(160deg, #151719, #060707 73%);
+      color: #fff;
+      height: 100%;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .akp-alarm-screen::before {
+      background: radial-gradient(circle at 60% 10%, rgba(255, 137, 23, 0.13), transparent 20%);
+      content: "";
+      inset: 0;
+      pointer-events: none;
+      position: absolute;
+    }
+
+    .akp-alarm-content {
+      align-items: center;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      justify-content: space-between;
+      padding: 95px 26px 24px;
+      position: relative;
+      text-align: center;
+      z-index: 1;
+    }
+
+    .akp-system-row {
+      color: rgba(255, 255, 255, 0.72);
+      font-size: 12px;
+      gap: 6px;
+      margin-bottom: 28px;
+    }
+
+    .akp-system-row svg {
+      color: var(--akp-orange);
+    }
+
+    .akp-alarm-identity {
+      flex-direction: column;
+      gap: 9px;
+    }
+
+    .akp-alarm-title {
+      color: rgba(255, 255, 255, 0.72);
+      font-size: 15px;
+      font-weight: 500;
+    }
+
+    .akp-alarm-time {
+      font-size: 65px;
+      font-weight: 300;
+      letter-spacing: -0.08em;
+      line-height: 0.96;
+    }
+
+    .akp-alarm-ampm {
+      color: rgba(255, 255, 255, 0.68);
+      font-size: 15px;
+      letter-spacing: 0.12em;
+      margin-top: -1px;
+    }
+
+    .akp-alarm-app {
+      align-items: center;
+      color: rgba(255, 255, 255, 0.58);
+      display: flex;
+      font-size: 12px;
+      gap: 7px;
+      margin-top: 25px;
+    }
+
+    .akp-alarm-app img {
+      border-radius: 6px;
+      height: 23px;
+      object-fit: cover;
+      width: 23px;
+    }
+
+    .akp-alarm-actions {
+      display: grid;
+      gap: 11px;
+      width: 100%;
+    }
+
+    .akp-alarm-action {
+      align-items: center;
+      border-radius: 18px;
+      cursor: pointer;
+      display: flex;
+      font-weight: 600;
+      gap: 9px;
+      justify-content: center;
+      min-height: 57px;
+      padding: 12px 16px;
+      transition: filter 150ms ease, transform 150ms ease;
+    }
+
+    .akp-alarm-action:hover {
+      filter: brightness(1.08);
+      transform: translateY(-1px);
+    }
+
+    .akp-alarm-action.scan {
+      background: var(--akp-orange);
+      color: #241305;
+    }
+
+    .akp-alarm-action.stop {
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      color: #fff;
+    }
+
+    .akp-alarm-action small {
+      display: block;
+      font-size: 10px;
+      font-weight: 400;
+      margin-left: 2px;
+      opacity: 0.62;
+    }
+
+    .akp-home-indicator {
+      background: rgba(255, 255, 255, 0.75);
+      border-radius: 999px;
+      bottom: 8px;
+      height: 4px;
+      left: 50%;
+      position: absolute;
+      transform: translateX(-50%);
+      width: 104px;
+      z-index: 3;
+    }
+
+    .akp-ringing-screen {
+      background: linear-gradient(160deg, #070707, #17191b);
+      color: #fff;
+      height: 100%;
+      overflow: hidden;
+      padding: 0 20px;
+      position: relative;
+    }
+
+    .akp-app-nav {
+      color: #fff;
+      justify-content: space-between;
+      padding: 43px 2px 10px;
+    }
+
+    .akp-app-nav strong {
+      font-size: 16px;
+      font-weight: 500;
+    }
+
+    .akp-app-nav button {
+      background: transparent;
+      color: rgba(255, 255, 255, 0.78);
+      cursor: pointer;
+      height: 32px;
+      padding: 0;
+      width: 32px;
+    }
+
+    .akp-ringing-content {
+      align-items: center;
+      display: flex;
+      flex-direction: column;
+      height: calc(100% - 75px);
+      justify-content: space-between;
+      padding: 54px 0 18px;
+      text-align: center;
+    }
+
+    .akp-ringing-eyebrow {
+      color: var(--akp-orange);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.11em;
+    }
+
+    .akp-ringing-time {
+      font-size: 56px;
+      font-weight: 300;
+      letter-spacing: -0.08em;
+      line-height: 1;
+      margin-top: 14px;
+    }
+
+    .akp-ringing-prompt {
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 14px;
+      margin-top: 12px;
+    }
+
+    .akp-ringing-choices {
+      display: grid;
+      gap: 10px;
+      margin-top: 22px;
+      width: 100%;
+    }
+
+    .akp-ringing-choice {
+      align-items: center;
+      border-radius: 16px;
+      cursor: pointer;
+      display: flex;
+      font-weight: 600;
+      gap: 9px;
+      justify-content: center;
+      min-height: 51px;
+      padding: 10px 14px;
+    }
+
+    .akp-ringing-choice.object {
+      background: var(--akp-orange);
+      color: #281406;
+    }
+
+    .akp-ringing-choice.qr {
+      background: transparent;
+      border: 1px solid rgba(255, 137, 23, 0.72);
+      color: #ffad58;
+    }
+
+    .akp-targets {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 15px;
+      overflow: hidden;
+      text-align: left;
+      width: 100%;
+    }
+
+    .akp-targets-heading {
+      color: rgba(255, 255, 255, 0.58);
+      font-size: 11px;
+      padding: 12px 13px 6px;
+    }
+
+    .akp-allowed-row {
+      gap: 10px;
+      min-height: 45px;
+      padding: 8px 13px;
+    }
+
+    .akp-allowed-row + .akp-allowed-row {
+      border-top: 1px solid var(--akp-phone-line);
+    }
+
+    .akp-allowed-row span {
+      font-size: 12px;
+    }
+
+    .akp-allowed-row svg {
+      color: rgba(255, 255, 255, 0.76);
+    }
+
+    .akp-camera-screen {
+      background:
+        linear-gradient(155deg, rgba(35, 64, 48, 0.82), rgba(5, 10, 10, 0.94) 58%),
+        radial-gradient(circle at 60% 30%, rgba(194, 143, 80, 0.35), transparent 25%);
+      color: #fff;
+      height: 100%;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .akp-camera-screen.object-camera {
+      background:
+        linear-gradient(150deg, rgba(57, 61, 64, 0.75), rgba(7, 8, 9, 0.96) 62%),
+        radial-gradient(circle at 47% 38%, rgba(161, 126, 75, 0.52), transparent 24%);
+    }
+
+    .akp-camera-screen::before {
+      background: repeating-linear-gradient(92deg, transparent 0 46px, rgba(255, 255, 255, 0.02) 48px 49px);
+      content: "";
+      inset: 0;
+      opacity: 0.5;
+      pointer-events: none;
+      position: absolute;
+    }
+
+    .akp-scanner-top {
+      gap: 10px;
+      justify-content: space-between;
+      padding: 43px 18px 12px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .akp-scanner-top button {
+      background: rgba(0, 0, 0, 0.28);
+      border: 1px solid rgba(255, 255, 255, 0.17);
+      border-radius: 50%;
+      color: #fff;
+      cursor: pointer;
+      height: 31px;
+      width: 31px;
+    }
+
+    .akp-scanner-top strong {
+      font-size: 16px;
+      font-weight: 500;
+    }
+
+    .akp-camera-body {
+      align-items: center;
+      display: flex;
+      flex-direction: column;
+      height: calc(100% - 86px);
+      justify-content: space-between;
+      padding: 45px 20px 22px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .akp-camera-eyebrow {
+      color: rgba(255, 255, 255, 0.68);
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .akp-scanner-frame {
+      height: 218px;
+      position: relative;
+      width: 218px;
+    }
+
+    .akp-scanner-frame::before,
+    .akp-scanner-frame::after,
+    .akp-scanner-corners::before,
+    .akp-scanner-corners::after {
+      border-color: var(--akp-orange);
+      border-style: solid;
+      content: "";
+      height: 35px;
+      position: absolute;
+      width: 35px;
+    }
+
+    .akp-scanner-frame::before {
+      border-width: 3px 0 0 3px;
+      left: 0;
+      top: 0;
+    }
+
+    .akp-scanner-frame::after {
+      border-width: 3px 3px 0 0;
+      right: 0;
+      top: 0;
+    }
+
+    .akp-scanner-corners::before {
+      border-width: 0 0 3px 3px;
+      bottom: 0;
+      left: 0;
+    }
+
+    .akp-scanner-corners::after {
+      border-width: 0 3px 3px 0;
+      bottom: 0;
+      right: 0;
+    }
+
+    .akp-qr-glyph {
+      align-items: center;
+      color: rgba(255, 255, 255, 0.88);
+      display: flex;
+      height: 100%;
+      justify-content: center;
+      opacity: 0.74;
+      width: 100%;
+    }
+
+    .akp-qr-glyph span {
+      border: 2px solid currentColor;
+      display: block;
+      height: 36px;
+      position: relative;
+      width: 36px;
+    }
+
+    .akp-qr-glyph span::before,
+    .akp-qr-glyph span::after {
+      background: currentColor;
+      content: "";
+      height: 5px;
+      position: absolute;
+      width: 5px;
+    }
+
+    .akp-qr-glyph span::before {
+      left: 7px;
+      top: 7px;
+    }
+
+    .akp-qr-glyph span::after {
+      bottom: 7px;
+      right: 7px;
+    }
+
+    .akp-object-glyph {
+      background: rgba(188, 140, 77, 0.28);
+      border: 1px solid rgba(255, 232, 190, 0.42);
+      border-radius: 18px;
+      box-shadow: 0 18px 35px rgba(0, 0, 0, 0.35);
+      height: 150px;
+      transform: rotate(-6deg);
+      width: 105px;
+    }
+
+    .akp-scanner-instruction {
+      color: rgba(255, 255, 255, 0.72);
+      font-size: 14px;
+      margin-top: 21px;
+      text-align: center;
+    }
+
+    .akp-camera-panel {
+      background: rgba(0, 0, 0, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 18px;
+      padding: 15px 16px;
+      width: 100%;
+    }
+
+    .akp-camera-panel strong,
+    .akp-camera-panel span {
+      display: block;
+    }
+
+    .akp-camera-panel strong {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .akp-camera-panel span {
+      color: rgba(255, 255, 255, 0.68);
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    .akp-simulate-button {
+      background: var(--akp-orange);
+      border-radius: 12px;
+      color: #261405;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      margin-top: 13px;
+      min-height: 39px;
+      padding: 8px 12px;
+      width: 100%;
+    }
+
+    .akp-success-screen,
+    .akp-stopped-screen {
+      align-items: center;
+      background: linear-gradient(160deg, #0b0c0d, #1d2021);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      justify-content: center;
+      padding: 30px;
+      text-align: center;
+    }
+
+    .akp-result-icon {
+      align-items: center;
+      border-radius: 50%;
+      display: flex;
+      height: 82px;
+      justify-content: center;
+      margin-bottom: 20px;
+      width: 82px;
+    }
+
+    .akp-result-icon.success {
+      background: rgba(85, 197, 138, 0.16);
+      color: var(--akp-green);
+    }
+
+    .akp-result-icon.stopped {
+      background: rgba(230, 111, 100, 0.16);
+      color: var(--akp-red);
+    }
+
+    .akp-result-title {
+      font-size: 29px;
+      font-weight: 400;
+      letter-spacing: -0.05em;
+    }
+
+    .akp-result-copy {
+      color: rgba(255, 255, 255, 0.68);
+      font-size: 14px;
+      margin: 10px 0 23px;
+      max-width: 245px;
+    }
+
+    .akp-result-detail {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 14px;
+      color: rgba(255, 255, 255, 0.82);
+      font-size: 12px;
+      margin-bottom: 18px;
+      padding: 11px 14px;
+      width: 100%;
+    }
+
+    .akp-result-button {
+      background: var(--akp-orange);
+      border-radius: 14px;
+      color: #261405;
+      cursor: pointer;
+      font-weight: 600;
+      min-height: 50px;
+      padding: 10px 18px;
+      width: 100%;
+    }
+
+    .akp-stage-footer {
+      border-top: 1px solid var(--akp-border);
+      color: var(--akp-muted);
+      font-size: 11px;
+      gap: 7px;
+      justify-content: center;
+      margin-top: 16px;
+      padding-top: 12px;
+      text-align: center;
+    }
+
+    .akp-stage-footer strong {
+      color: var(--akp-ink);
+      font-weight: 600;
+    }
+
+    .akp-stage-footer .dot {
+      background: var(--akp-orange);
+      border-radius: 50%;
+      height: 5px;
+      width: 5px;
+    }
+
+    .akp-toast {
+      background: #20211f;
+      border-radius: 12px;
+      bottom: 18px;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+      color: #fff;
+      font-size: 12px;
+      left: 50%;
+      opacity: 0;
+      padding: 10px 14px;
+      pointer-events: none;
+      position: absolute;
+      transform: translate(-50%, 10px);
+      transition: opacity 180ms ease, transform 180ms ease;
+      white-space: nowrap;
+      z-index: 20;
+    }
+
+    .akp-toast.is-visible {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    .akp-icon {
+      display: inline-block;
+      height: 18px;
+      width: 18px;
+    }
+
+    .akp-icon.small {
+      height: 15px;
+      width: 15px;
+    }
+
+    @media (max-width: 930px) {
+      .akp-layout {
+        align-items: stretch;
+        flex-direction: column-reverse;
+      }
+
+      .akp-rail {
+        flex-basis: auto;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      }
+
+      .akp-rail > .akp-caveat {
+        grid-column: 1 / -1;
+        margin-top: 0;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .akp-page {
+        border-radius: 18px;
+        padding: 12px;
+      }
+
+      .akp-header {
+        align-items: flex-start;
+      }
+
+      .akp-header-actions {
+        flex-direction: column;
+      }
+
+      .akp-header-button {
+        min-height: 32px;
+        padding: 6px 10px;
+      }
+
+      .akp-progress {
+        align-items: stretch;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .akp-layout {
+        gap: 12px;
+      }
+
+      .akp-rail {
+        display: flex;
+      }
+
+      .akp-stage {
+        padding: 10px;
+      }
+
+      .akp-stage-header {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 8px;
+        padding: 3px 4px 0;
+      }
+
+      .akp-phone-wrap {
+        min-height: 0;
+      }
+
+      .akp-phone {
+        border-radius: 31px;
+        border-width: 4px;
+      }
+
+      .akp-phone::after {
+        border-radius: 28px;
+      }
+
+      .akp-step-label {
+        font-size: 11px;
+      }
+    }
+  </style>
+
+  <div class="akp-page">
+    <header class="akp-header">
+      <div class="akp-brand">
+        <img class="akp-brand-mark" src="../assets/icon.png" alt="Super Alarm">
+        <div class="akp-brand-copy">
+          <strong>Super Alarm</strong>
+          <span>AlarmKit handoff prototype</span>
+        </div>
+      </div>
+      <div class="akp-header-actions">
+        <button class="akp-header-button" type="button" data-action="show-api">API mapping</button>
+        <button class="akp-header-button primary" type="button" data-action="start-flow">Preview alarm</button>
+      </div>
+    </header>
+
+    <div class="akp-progress" role="tablist" aria-label="AlarmKit flow steps">
+      <button class="akp-step is-active" type="button" role="tab" aria-selected="true" data-state="setup"><span class="akp-step-number">1</span><span class="akp-step-label">Configure</span></button>
+      <button class="akp-step" type="button" role="tab" aria-selected="false" data-state="alert"><span class="akp-step-number">2</span><span class="akp-step-label">AlarmKit alert</span></button>
+      <button class="akp-step" type="button" role="tab" aria-selected="false" data-state="ringing"><span class="akp-step-number">3</span><span class="akp-step-label">Scan in app</span></button>
+      <button class="akp-step" type="button" role="tab" aria-selected="false" data-state="success"><span class="akp-step-number">4</span><span class="akp-step-label">Dismissed</span></button>
+    </div>
+
+    <div class="akp-layout">
+      <aside class="akp-rail" aria-label="Prototype controls">
+        <section class="akp-panel">
+          <p class="akp-eyebrow">Flow explorer</p>
+          <h1>AlarmKit handoff</h1>
+          <p class="akp-rail-intro">Preview the target experience: a system alarm offers a direct scan action, then Super Alarm finishes the dismissal locally.</p>
+          <div class="akp-api-list" role="list">
+            <button class="akp-step-row is-active" type="button" role="listitem" data-state="setup">
+              <span class="akp-step-row-icon"><svg class="akp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.2 2"/></svg></span>
+              <span class="akp-step-row-copy"><strong>Configure</strong><span>Weekly 7:30 AM alarm</span></span>
+            </button>
+            <button class="akp-step-row" type="button" role="listitem" data-state="alert">
+              <span class="akp-step-row-icon"><svg class="akp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 10a6 6 0 0 1 12 0c0 7 2 7 2 9H4c0-2 2-2 2-9Z"/><path d="M9 22h6M4.6 4.6 3 3m16.4 1.6L21 3"/></svg></span>
+              <span class="akp-step-row-copy"><strong>AlarmKit alert</strong><span>System-owned alert surface</span></span>
+            </button>
+            <button class="akp-step-row" type="button" role="listitem" data-state="ringing">
+              <span class="akp-step-row-icon"><svg class="akp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4H5a1 1 0 0 0-1 1v3M16 4h3a1 1 0 0 1 1 1v3M8 20H5a1 1 0 0 1-1-1v-3M16 20h3a1 1 0 0 1 1-1v-3"/><rect x="8.2" y="8.2" width="7.6" height="7.6" rx="1.4"/></svg></span>
+              <span class="akp-step-row-copy"><strong>Scan in app</strong><span>QR or object target</span></span>
+            </button>
+            <button class="akp-step-row" type="button" role="listitem" data-state="success">
+              <span class="akp-step-row-icon"><svg class="akp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.6 2.6L16.5 9"/></svg></span>
+              <span class="akp-step-row-copy"><strong>Dismissed</strong><span>Record method and target</span></span>
+            </button>
+            <button class="akp-step-row" type="button" role="listitem" data-state="stopped">
+              <span class="akp-step-row-icon"><svg class="akp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg></span>
+              <span class="akp-step-row-copy"><strong>Stop escape hatch</strong><span>System stop, no scan</span></span>
+            </button>
+          </div>
+        </section>
+
+        <section class="akp-panel" id="akp-api-panel">
+          <p class="akp-eyebrow">Target wiring</p>
+          <div class="akp-api-list">
+            <div class="akp-api-row"><span class="akp-api-dot"></span><code>Alarm.Schedule.Relative.weekly</code></div>
+            <div class="akp-api-row"><span class="akp-api-dot"></span><code>AlarmPresentation.Alert</code></div>
+            <div class="akp-api-row"><span class="akp-api-dot"></span><code>secondaryButtonBehavior: .custom</code></div>
+            <div class="akp-api-row"><span class="akp-api-dot"></span><code>secondaryIntent.openAppWhenRun = true</code></div>
+            <div class="akp-api-row"><span class="akp-api-dot"></span><code>AlarmManager.stop(id)</code> after valid scan</div>
+          </div>
+        </section>
+
+        <div class="akp-caveat"><strong>Product boundary</strong>The orange action is our handoff. The system Stop action remains visible, so scanning is a strong flow rather than a technically enforced gate.</div>
+      </aside>
+
+      <section class="akp-stage" aria-label="Interactive phone preview">
+        <div class="akp-stage-header">
+          <div>
+            <h2 id="akp-stage-title">Configure the morning alarm</h2>
+            <p id="akp-stage-copy">A native Super Alarm setup screen before the system alert fires.</p>
+          </div>
+          <span class="akp-stage-state" id="akp-stage-state">App-owned</span>
+        </div>
+
+        <div class="akp-phone-wrap">
+          <div class="akp-phone">
+            <div class="akp-phone-screen" id="akp-phone-screen"></div>
+          </div>
+        </div>
+
+        <div class="akp-stage-footer" id="akp-stage-footer"><span class="dot"></span><strong>App-owned</strong> setup and target selection</div>
+      </section>
+    </div>
+    <div class="akp-toast" id="akp-toast" role="status" aria-live="polite"></div>
+  </div>
+
+  <script>
+    const root = document.getElementById("alarmkit-preview");
+    const phoneScreen = root.querySelector("#akp-phone-screen");
+    const stageTitle = root.querySelector("#akp-stage-title");
+    const stageCopy = root.querySelector("#akp-stage-copy");
+    const stageState = root.querySelector("#akp-stage-state");
+    const stageFooter = root.querySelector("#akp-stage-footer");
+    const toast = root.querySelector("#akp-toast");
+    let currentState = "setup";
+    let toastTimer;
+
+    const ICON = {
+      alarm: '<svg class="akp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 10a6 6 0 0 1 12 0c0 7 2 7 2 9H4c0-2 2-2 2-9Z"/><path d="M9 22h6M4.6 4.6 3 3m16.4 1.6L21 3"/></svg>',
+      clock: '<svg class="akp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.2 2"/></svg>',
+      scan: '<svg class="akp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4H5a1 1 0 0 0-1 1v3M16 4h3a1 1 0 0 1 1 1v3M8 20H5a1 1 0 0 1-1-1v-3M16 20h3a1 1 0 0 0 1-1v-3"/><rect x="8.2" y="8.2" width="7.6" height="7.6" rx="1.4"/></svg>',
+      qr: '<svg class="akp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2M19 14v3M14 19h3M20 19v1"/></svg>',
+      object: '<svg class="akp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 8.5 9.3 5h5.4L17 8.5l2.3 1.7v7.3a2 2 0 0 1-2 2H6.7a2 2 0 0 1-2-2v-7.3L7 8.5Z"/><circle cx="12" cy="14" r="3.1"/><path d="M9.5 5h5"/></svg>',
+      pin: '<svg class="akp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 10c0 5-7 10-7 10S5 15 5 10a7 7 0 1 1 14 0Z"/><circle cx="12" cy="10" r="2.2"/></svg>',
+      gear: '<svg class="akp-icon small" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1a1.6 1.6 0 0 1-2.3 2.3l-.1-.1a1.6 1.6 0 0 0-2.7 1.1v.2a1.6 1.6 0 0 1-3.2 0v-.2a1.6 1.6 0 0 0-2.7-1.1l-.1.1a1.6 1.6 0 0 1-2.3-2.3l.1-.1A1.6 1.6 0 0 0 5.1 12a1.6 1.6 0 0 1 0-3.2 1.6 1.6 0 0 0 1.1-2.7l-.1-.1a1.6 1.6 0 0 1 2.3-2.3l.1.1A1.6 1.6 0 0 0 11.2 2.7a1.6 1.6 0 0 1 3.2 0 1.6 1.6 0 0 0 2.7 1.1l.1-.1a1.6 1.6 0 0 1 2.3 2.3l-.1.1A1.6 1.6 0 0 0 20.5 9a1.6 1.6 0 0 1 0 3.2 1.6 1.6 0 0 0-1.1 2.8Z"/></svg>',
+      check: '<svg class="akp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.6 2.6L16.5 9"/></svg>',
+      stop: '<svg class="akp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>',
+      back: '<svg class="akp-icon small" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>',
+      close: '<svg class="akp-icon small" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg>',
+      more: '<svg class="akp-icon small" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>',
+      arrow: '<svg class="akp-icon small" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>'
+    };
+
+    const stateMeta = {
+      setup: {
+        title: "Configure the morning alarm",
+        copy: "A native Super Alarm setup screen before the system alert fires.",
+        state: "App-owned",
+        footer: "<span class=\"dot\"></span><strong>App-owned</strong> setup and target selection"
+      },
+      alert: {
+        title: "AlarmKit alert",
+        copy: "The system-owned alarm surface with our custom scan handoff.",
+        state: "System-owned",
+        footer: "<span class=\"dot\"></span><strong>System-owned</strong> alert, sound, and Stop control"
+      },
+      ringing: {
+        title: "Super Alarm ringing screen",
+        copy: "The custom secondary action opens the app into its dismissal flow.",
+        state: "App-owned",
+        footer: "<span class=\"dot\"></span><strong>App-owned</strong> ringing UI and target choice"
+      },
+      qr: {
+        title: "QR scanner",
+        copy: "The app's camera sheet validates an enrolled QR spot locally.",
+        state: "App-owned",
+        footer: "<span class=\"dot\"></span><strong>App-owned</strong> camera scan and validation"
+      },
+      object: {
+        title: "Object scanner",
+        copy: "The app's camera flow recognizes an enrolled household object.",
+        state: "App-owned",
+        footer: "<span class=\"dot\"></span><strong>App-owned</strong> vision scan and validation"
+      },
+      success: {
+        title: "Valid dismissal",
+        copy: "Super Alarm records the target and stops the AlarmKit alarm.",
+        state: "App-owned",
+        footer: "<span class=\"dot\"></span><strong>App-owned</strong> validation, history, and AlarmManager.stop"
+      },
+      stopped: {
+        title: "Stopped without scan",
+        copy: "The system escape hatch remains available and records no target.",
+        state: "System-owned",
+        footer: "<span class=\"dot\"></span><strong>System-owned</strong> Stop action, no scan recorded"
+      }
+    };
+
+    function icon(name) {
+      return ICON[name] || "";
+    }
+
+    function statusBar(dark) {
+      return `<div class="akp-phone-status" style="color:${dark ? "rgba(255,255,255,.86)" : "#171717"}"><span>9:41</span><span class="akp-status-icons"><span class="akp-signal"><i></i><i></i><i></i><i></i></span><span class="akp-wifi"></span><span class="akp-battery"></span></span></div>`;
+    }
+
+    function homeIndicator(dark) {
+      return `<span class="akp-home-indicator" style="background:${dark ? "rgba(255,255,255,.72)" : "rgba(20,20,18,.68)"}"></span>`;
+    }
+
+    function dialTicks() {
+      return Array.from({ length: 24 }, (_, index) => `<span class="akp-dial-tick" style="transform:rotate(${index * 15}deg)"></span>`).join("");
+    }
+
+    function renderSetup() {
+      return `<div class="akp-setup-screen">
+        ${statusBar(false)}
+        <div class="akp-phone-nav"><button class="akp-phone-nav-button" type="button" aria-label="Settings">${icon("gear")}</button><span class="akp-phone-nav-title">Super Alarm</span><button class="akp-phone-nav-button" type="button" aria-label="More">${icon("more")}</button></div>
+        <div class="akp-setup-body">
+          <div class="akp-dial"><div class="akp-dial-ticks">${dialTicks()}</div><div class="akp-dial-content"><span class="akp-dial-icon">${icon("alarm")}</span><div class="akp-dial-time">7:30</div><div class="akp-dial-meridiem">AM</div></div></div>
+          <p class="akp-next-alarm">Alarm in 11h 30m</p>
+          <div class="akp-ios-card">
+            <div class="akp-setting-row"><span>${icon("alarm")} &nbsp;Enabled</span><span class="akp-toggle" aria-label="Enabled"></span></div>
+            <div class="akp-setting-row"><span>Repeat</span><span class="akp-setting-value">Mon, Tue, Wed, Thu, Fri</span>${icon("arrow")}</div>
+          </div>
+          <div class="akp-ios-card">
+            <div class="akp-card-heading">QR Spots</div>
+            <div class="akp-list-row"><span class="akp-list-row-icon">${icon("pin")}</span><span class="akp-list-row-copy"><strong>Bathroom sink</strong><small>Primary</small></span>${icon("more")}</div>
+            <div class="akp-list-row"><span class="akp-list-row-icon">${icon("pin")}</span><span class="akp-list-row-copy"><strong>Kitchen kettle</strong><small>Secondary</small></span>${icon("more")}</div>
+            <div class="akp-list-row" style="justify-content:center;color:var(--akp-orange);font-size:12px">+ &nbsp;Add QR spot</div>
+          </div>
+          <div class="akp-ios-card">
+            <div class="akp-setting-row"><span>${icon("alarm")} &nbsp;AlarmKit</span><span class="akp-setting-value" style="color:#46a972">Ready</span>${icon("arrow")}</div>
+          </div>
+        </div>
+        <div class="akp-tabs"><div class="akp-tab"><strong>${icon("alarm")}</strong>Alarm</div><div class="akp-tab"><strong style="color:#8b8982">${icon("gear")}</strong>Settings</div></div>
+      </div>`;
+    }
+
+    function renderAlert() {
+      return `<div class="akp-alarm-screen">
+        ${statusBar(true)}
+        <div class="akp-alarm-content">
+          <div class="akp-alarm-identity">
+            <div class="akp-system-row">${icon("alarm")} <span>Alarm</span></div>
+            <div class="akp-alarm-title">Morning alarm</div>
+            <div class="akp-alarm-time">7:30</div>
+            <div class="akp-alarm-ampm">AM</div>
+            <div class="akp-alarm-app"><img src="../assets/icon.png" alt=""><span>Super Alarm</span></div>
+          </div>
+          <div class="akp-alarm-actions">
+            <button class="akp-alarm-action scan" type="button" data-action="open-ringing">${icon("scan")}<span>Scan to dismiss</span></button>
+            <button class="akp-alarm-action stop" type="button" data-action="stop-alarm">${icon("stop")}<span>Stop</span><small>system escape hatch</small></button>
+          </div>
+        </div>
+        ${homeIndicator(true)}
+      </div>`;
+    }
+
+    function renderRinging() {
+      return `<div class="akp-ringing-screen">
+        ${statusBar(true)}
+        <div class="akp-app-nav"><button type="button" data-state="alert" aria-label="Back">${icon("back")}</button><strong>Super Alarm</strong><button type="button" aria-label="More">${icon("more")}</button></div>
+        <div class="akp-ringing-content">
+          <div><div class="akp-ringing-eyebrow">ALARM RINGING</div><div class="akp-ringing-time">7:30 AM</div><div class="akp-ringing-prompt">Scan an allowed object or QR spot</div><div class="akp-ringing-choices"><button class="akp-ringing-choice object" type="button" data-state="object">${icon("object")}<span>Scan Object</span></button><button class="akp-ringing-choice qr" type="button" data-state="qr">${icon("qr")}<span>Scan QR</span></button></div></div>
+          <div class="akp-targets"><div class="akp-targets-heading">Allowed targets</div><div class="akp-allowed-row">${icon("object")}<span>Fridge</span></div><div class="akp-allowed-row">${icon("pin")}<span>Bathroom sink</span></div><div class="akp-allowed-row">${icon("pin")}<span>Kitchen kettle</span></div></div>
+        </div>
+        ${homeIndicator(true)}
+      </div>`;
+    }
+
+    function renderQrScanner() {
+      return `<div class="akp-camera-screen">
+        ${statusBar(true)}
+        <div class="akp-scanner-top"><button type="button" data-state="ringing" aria-label="Close scanner">${icon("close")}</button><strong>Scan QR</strong><span style="width:31px"></span></div>
+        <div class="akp-camera-body"><div class="akp-camera-eyebrow">Bathroom sink</div><div><div class="akp-scanner-frame"><div class="akp-scanner-corners"></div><div class="akp-qr-glyph"><span></span></div></div><div class="akp-scanner-instruction">Align the enrolled code inside the frame</div></div><div class="akp-camera-panel"><strong>Looking for a QR spot</strong><span>Scanning stays on this iPhone.</span><button class="akp-simulate-button" type="button" data-action="valid-scan">Simulate valid scan</button></div></div>
+        ${homeIndicator(true)}
+      </div>`;
+    }
+
+    function renderObjectScanner() {
+      return `<div class="akp-camera-screen object-camera">
+        ${statusBar(true)}
+        <div class="akp-scanner-top"><button type="button" data-state="ringing" aria-label="Close scanner">${icon("close")}</button><strong>Find your object</strong><span style="width:31px"></span></div>
+        <div class="akp-camera-body"><div class="akp-camera-eyebrow">Object match</div><div><div class="akp-scanner-frame"><div class="akp-scanner-corners"></div><div class="akp-object-glyph"></div></div><div class="akp-scanner-instruction">Fill the ring, then move the phone slowly</div></div><div class="akp-camera-panel"><strong>Move close to your object</strong><span>Hold steady for a moment to confirm the match.</span><button class="akp-simulate-button" type="button" data-action="valid-scan">Simulate recognized object</button></div></div>
+        ${homeIndicator(true)}
+      </div>`;
+    }
+
+    function renderSuccess() {
+      return `<div class="akp-success-screen">${statusBar(true)}<div class="akp-result-icon success">${icon("check")}</div><div class="akp-result-title">Dismissed</div><div class="akp-result-copy">Your wake-up target was verified. The AlarmKit alarm is stopped.</div><div class="akp-result-detail">Bathroom sink | QR spot | 7:31 AM</div><button class="akp-result-button" type="button" data-state="setup">Done</button>${homeIndicator(true)}</div>`;
+    }
+
+    function renderStopped() {
+      return `<div class="akp-stopped-screen">${statusBar(true)}<div class="akp-result-icon stopped">${icon("stop")}</div><div class="akp-result-title">Alarm stopped</div><div class="akp-result-copy">The system Stop action ended this alert before a target was scanned.</div><div class="akp-result-detail">No dismissal target recorded | 7:30 AM</div><button class="akp-result-button" type="button" data-state="setup">Return to alarm</button>${homeIndicator(true)}</div>`;
+    }
+
+    function renderPhone() {
+      const view = currentState === "setup" ? renderSetup() : currentState === "alert" ? renderAlert() : currentState === "ringing" ? renderRinging() : currentState === "qr" ? renderQrScanner() : currentState === "object" ? renderObjectScanner() : currentState === "success" ? renderSuccess() : renderStopped();
+      phoneScreen.innerHTML = view;
+      phoneScreen.querySelectorAll("[data-state]").forEach((element) => element.addEventListener("click", () => setState(element.dataset.state)));
+      phoneScreen.querySelectorAll("[data-action]").forEach((element) => element.addEventListener("click", () => handleAction(element.dataset.action)));
+    }
+
+    function setState(nextState) {
+      currentState = nextState;
+      const meta = stateMeta[nextState] || stateMeta.setup;
+      stageTitle.textContent = meta.title;
+      stageCopy.textContent = meta.copy;
+      stageState.textContent = meta.state;
+      stageFooter.innerHTML = meta.footer;
+      root.querySelectorAll("[data-state]").forEach((element) => {
+        const selected = element.dataset.state === nextState || (nextState === "qr" || nextState === "object") && element.dataset.state === "ringing";
+        if (element.classList.contains("akp-step") || element.classList.contains("akp-step-row")) element.classList.toggle("is-active", selected);
+        if (element.classList.contains("akp-step")) element.setAttribute("aria-selected", selected ? "true" : "false");
+      });
+      renderPhone();
+    }
+
+    function handleAction(action) {
+      if (action === "start-flow") setState("alert");
+      if (action === "open-ringing") {
+        showToast("secondaryIntent opened Super Alarm");
+        setState("ringing");
+      }
+      if (action === "stop-alarm") {
+        showToast("AlarmManager recorded a system Stop");
+        setState("stopped");
+      }
+      if (action === "valid-scan") {
+        showToast("Valid target verified locally");
+        setState("success");
+      }
+      if (action === "show-api") {
+        root.querySelector("#akp-api-panel").scrollIntoView({ behavior: "smooth", block: "nearest" });
+        showToast("AlarmKit wiring is listed in the side panel");
+      }
+    }
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add("is-visible");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove("is-visible"), 1800);
+    }
+
+    root.querySelectorAll("[data-state]").forEach((element) => element.addEventListener("click", () => setState(element.dataset.state)));
+    root.querySelectorAll("[data-action]").forEach((element) => element.addEventListener("click", () => handleAction(element.dataset.action)));
+    renderPhone();
+  </script>
+</div>

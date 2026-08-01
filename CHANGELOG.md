@@ -7,6 +7,10 @@
 - Added a branded eight-image phone screenshot set built from the current app captures, with truthful feature headlines and an upload-ready 1080x1920 opaque PNG format.
 - Reworked the Play listing title, short description, full description, and feature graphic around scan-to-wake alarm intent and the current Android feature set.
 
+### iOS
+
+- Added an interactive AlarmKit handoff preview covering the system alert, scan-to-dismiss action, QR and object scanners, valid dismissal, and the system Stop escape hatch.
+
 ## 1.4.0 — 2026-07-30
 
 ### Android and iOS
