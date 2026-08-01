@@ -26,3 +26,10 @@
 - Replaced the English (United States) phone screenshot set in Play Console with the eight files from `store/screenshots/android/phone-branded/`.
 - Validated the Play edit after removing two duplicate uploads caused by delayed CLI output, committed it, and verified from a fresh edit that all eight remote SHA-256 hashes match the local files.
 - Confirmed in Play Console that the metadata change is in `Changes in review`; managed publishing is off, so no manual publish action is pending.
+
+## 2026-08-01 12:49 PKT
+
+- Audited the current Play listing and project capabilities for additional ASO work without changing store metadata.
+- Confirmed the listing has one locale (`en-US`), no promotional video URL, a 55-character short description, and a 4,000-character budget that is currently used by a compact feature description.
+- Identified the main opportunities as a stronger feature graphic, a search-intent short description, an Android-focused full-description rewrite that adds the shipped widget and guided wake-up test, native localization based on traffic, and a measured store-listing experiment.
+- Inspected the current feature graphic and found a small centered icon with large unused whitespace; the current category is `Tools`, which matches the product and does not need an immediate change.
