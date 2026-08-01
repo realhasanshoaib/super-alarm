@@ -33,3 +33,17 @@
 - Confirmed the listing has one locale (`en-US`), no promotional video URL, a 55-character short description, and a 4,000-character budget that is currently used by a compact feature description.
 - Identified the main opportunities as a stronger feature graphic, a search-intent short description, an Android-focused full-description rewrite that adds the shipped widget and guided wake-up test, native localization based on traffic, and a measured store-listing experiment.
 - Inspected the current feature graphic and found a small centered icon with large unused whitespace; the current category is `Tools`, which matches the product and does not need an immediate change.
+
+## 2026-08-01 13:05 PKT
+
+- Replaced the weak feature graphic with a 1024x500 opaque RGB composition built from the existing brand backdrop and a real alarm screen capture; verified the final file locally and uploaded it to the default Play listing.
+- Reworked the default `en-US` title to `Super Alarm: Scan to Wake`, the short description to `Scan an object or QR code to dismiss your wake-up alarm.`, and the full description to reflect the current Android features, privacy behavior, and reliability tools; verified the saved values from a fresh Play edit.
+- Created the `Search: Scan to Wake` custom store listing with the `alarm` search-keyword audience, inherited the updated assets and metadata, saved it, and submitted it with the default-listing changes for Google review.
+- Play required restarting the existing review so both changes were included; final verification shows `Changes in review`. YouTube video remains intentionally unset.
+- Did not add a native-language listing because the last-28-days traffic was too small to support a defensible target-language choice. Did not start a graphic experiment because Play estimated 47,071 unique-user install clicks for a meaningful result while the listing had only 74 visitors and 10.8% conversion in the observed baseline.
+
+## 2026-08-01 13:22 PKT
+
+- Applied the user-rewritten Play copy to the default and `Search: Scan to Wake` custom listings: title `Super Alarm — Scan to Wake Up`, short description `Alarm clock for heavy sleepers. Get out of bed and scan an object to stop it.`, and the revised full description.
+- Verified the custom listing review screen retained all eight phone screenshots, retained the feature graphic, and left the YouTube video field unset.
+- Submitted the custom listing copy changes and restarted the existing Play review as required; Publishing overview now shows the default and custom listing changes in review with no changes pending submission.

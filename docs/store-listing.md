@@ -1,47 +1,69 @@
 # Super Alarm store listing draft
 
 ## Title
-Super Alarm
+Super Alarm — Scan to Wake Up
 
 ## Short description
-A calm alarm that makes you reach a real-world object.
+Alarm clock for heavy sleepers. Get out of bed and scan an object to stop it.
 
 ## Google Play full description
-Super Alarm turns waking up into a simple, intentional routine. Set your alarm, scan a household object such as your fridge, and find it again when the alarm rings. You can also use a QR spot.
+You don't need a louder alarm. You need one you can't dismiss from under the covers.
 
-The guided object sweep captures useful views automatically and recognizes the object on device, so no printer, account, or network connection is required.
+Super Alarm only stops when you get out of bed and scan a real object in your home — your fridge, your mirror, your coffee machine — or a QR spot placed across the room. By the time you've dismissed it, you're already up.
 
-Platform note: Android supports a full-screen ringing flow for scheduled alarms. On iOS, scheduled notifications open the dismissal flow when tapped.
+Made for heavy sleepers and chronic snoozers
+- Enroll any household object with a guided scan. No printer, no stickers.
+- Or create a QR spot for the bathroom or kitchen.
+- Walking across the room breaks the half-asleep snooze loop for good.
 
-Features:
-- On-device object-recognition dismissal
-- Automatic guided object enrollment
-- Optional QR-code dismissal
-- Exact scheduled wake alarms on Android
-- Full-screen ringing flow on Android
-- Local notification wake flow on iOS
-- Backup re-rings
-- Boot restore on Android
-- Reliability checklist
-- Local diagnostics export
+An alarm clock that actually rings
+- Exact scheduled alarms that fire on time.
+- Full-screen ringing even while your phone is locked.
+- Backup re-rings if a ring is missed, and alarms restored after reboot.
+- A real wake-up test during setup, so you know it works before tomorrow morning.
 
-Super Alarm does not require an account and does not use ads or tracking.
+Set up with confidence in minutes
+- Guided setup for your dismissal target, alarm time, and repeat days.
+- Alarm-critical phone settings checked in context, before they can silence you.
+- Home-screen widget with your next alarm and 5h, 6h, and 8h sleep shortcuts.
+
+Private by design
+- Object recognition runs entirely on your phone.
+- No account, no ads, no tracking, no cloud sync. Works offline.
+- Camera frames are processed on device for QR scanning and object recognition. One representative object thumbnail stays in private app storage; every other frame is discarded.
+- Local diagnostics export when you want to verify reliability yourself.
+
+Wake up on time. Get out of bed. Start the morning on your feet.
+
+## Apple App Store subtitle
+Alarm clock for heavy sleepers
+
+## Apple App Store keywords
+snooze,morning,routine,qr,bed,oversleep,challenge,mission,loud,early,riser,habit,getup,wakeup
+
+## Apple App Store promotional text
+Snoozing through every alarm? Super Alarm only stops once you're out of bed, scanning your fridge or a QR spot across the room.
 
 ## Apple App Store description
-Super Alarm turns waking up into a simple, intentional routine. Set your alarm, scan a household object such as your fridge, and find it again when the alarm opens the dismissal flow. You can also use a QR spot.
+You don't need a louder alarm. You need one you can't dismiss from under the covers.
 
-The guided object sweep captures useful views automatically and recognizes the object on device, so no printer, account, or network connection is required.
+Super Alarm only stops when you get out of bed and scan a real object in your home — your fridge, your mirror, your coffee machine — or a QR spot placed across the room. By the time you've dismissed it, you're already up.
 
-Features:
-- On-device object-recognition dismissal
-- Automatic guided object enrollment
-- Optional QR-code dismissal
-- Scheduled notification wake flow
-- Backup notifications
-- Reliability checklist
-- Local diagnostics export
+Made for heavy sleepers and chronic snoozers:
+- Enroll any household object with a Face ID-style guided sweep that captures useful views automatically. No printer, no stickers.
+- Or create a QR spot for the bathroom or kitchen.
+- Walking across the room breaks the half-asleep snooze loop for good.
 
-Super Alarm does not require an account and does not use ads or tracking.
+Built to be trusted:
+- Scheduled notification wake flow with backup notifications.
+- A reliability checklist so your phone settings can't silence you.
+- Local diagnostics export when you want to verify reliability yourself.
+
+Private by design:
+- Object recognition runs entirely on your phone — no account or network connection required.
+- No ads, no tracking, no cloud sync.
+
+Wake up on time. Get out of bed. Start the morning on your feet.
 
 ## Google testing instructions
 No account required. Scan an object or create a QR spot, grant alarm, notification, full-screen, and camera permissions when prompted, then use Test Alarm to verify dismissal.
