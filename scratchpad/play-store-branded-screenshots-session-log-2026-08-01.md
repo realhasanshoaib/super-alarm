@@ -19,3 +19,10 @@
 - Removed the small logo, sequence counter, generic headline, and subtitle from every image.
 - Replaced them with one large two-line benefit statement and a single orange accent, then enlarged and raised each real app capture so the product dominates the composition.
 - Inspected the revised eight-image contact sheet and revalidated every final as a 1080x1920 opaque 8-bit RGB PNG below Google Play's size limit.
+
+## 2026-08-01 12:44 PKT
+
+- Loaded the `mobile-submission` and `mobile-screenshots` workflows through Skillbox and identified `com.superalarm.app` as the Android package.
+- Replaced the English (United States) phone screenshot set in Play Console with the eight files from `store/screenshots/android/phone-branded/`.
+- Validated the Play edit after removing two duplicate uploads caused by delayed CLI output, committed it, and verified from a fresh edit that all eight remote SHA-256 hashes match the local files.
+- Confirmed in Play Console that the metadata change is in `Changes in review`; managed publishing is off, so no manual publish action is pending.
