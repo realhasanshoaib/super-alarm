@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Google Play
+
+- Added a branded eight-image phone screenshot set built from the current app captures, with truthful feature headlines and an upload-ready 1080x1920 opaque PNG format.
+
 ## 1.4.0 — 2026-07-30
 
 ### Android and iOS
