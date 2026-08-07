@@ -10,6 +10,7 @@
 ### iOS
 
 - Added an interactive AlarmKit handoff preview covering the system alert, scan-to-dismiss action, QR and object scanners, valid dismissal, and the system Stop escape hatch.
+- Added main-actor isolation for UI state and lightweight SwiftUI Canvas previews for the alarm editor and onboarding screens.
 
 ## 1.4.0 — 2026-07-30
 

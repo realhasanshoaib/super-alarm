@@ -567,3 +567,10 @@ private struct OnboardingPrimaryButton: View {
         .disabled(!enabled)
     }
 }
+
+#if DEBUG
+#Preview("Onboarding") {
+    OnboardingView()
+        .environmentObject(SuperAlarmPreviewData.store(hasCompletedOnboarding: false))
+}
+#endif

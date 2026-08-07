@@ -3,6 +3,7 @@ import SwiftUI
 import UIKit
 import UserNotifications
 
+@MainActor
 final class AppStore: ObservableObject {
     @Published var state = SuperAlarmState()
     @Published var health = NotificationHealth()

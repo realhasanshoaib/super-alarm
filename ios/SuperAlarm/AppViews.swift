@@ -825,3 +825,47 @@ struct ExportedNotificationHealth: Codable {
         hasCriticalEntitlement = health.hasCriticalEntitlement
     }
 }
+
+#if DEBUG
+@MainActor
+enum SuperAlarmPreviewData {
+    static func store(hasCompletedOnboarding: Bool) -> AppStore {
+        let store = AppStore()
+        let qrID = UUID()
+        let objectID = UUID()
+
+        var state = SuperAlarmState()
+        state.hasCompletedOnboarding = hasCompletedOnboarding
+        state.alarm.isEnabled = true
+        state.alarm.timeMinutes = 7 * 60 + 30
+        state.alarm.allowedLocationIds = [qrID]
+        state.alarm.allowedObjectTargetIds = [objectID]
+        state.qrLocations = [QrLocation(
+            id: qrID,
+            label: "Bathroom sink",
+            payload: "superalarm://alarm-qr/preview",
+            createdAt: Date()
+        )]
+        state.objectTargets = [ObjectTarget(
+            id: objectID,
+            label: "Blue mug",
+            fingerprints: ["preview"],
+            matchDistanceThreshold: 0.8,
+            visionRevision: ObjectFeaturePrintCodec.revision,
+            createdAt: Date()
+        )]
+        store.state = state
+        store.health.authorizationStatus = .authorized
+        store.health.alertSetting = .enabled
+        store.health.soundSetting = .enabled
+        return store
+    }
+}
+
+#Preview("Alarm editor") {
+    NavigationStack {
+        AlarmEditorView()
+    }
+    .environmentObject(SuperAlarmPreviewData.store(hasCompletedOnboarding: true))
+}
+#endif
