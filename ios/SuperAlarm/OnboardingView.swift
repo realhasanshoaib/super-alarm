@@ -12,7 +12,6 @@ struct OnboardingView: View {
                     value: Double(store.state.onboardingStep.rawValue + 1),
                     total: Double(OnboardingStep.ready.rawValue + 1)
                 )
-                .tint(.orange)
                 stepContent
             }
             .navigationTitle("Super Alarm")
@@ -34,7 +33,6 @@ struct OnboardingView: View {
                 }
             }
         }
-        .tint(.orange)
         .interactiveDismissDisabled()
         .sheet(item: $sheet) { route in
             switch route {
@@ -98,18 +96,17 @@ private struct WelcomeOnboardingStep: View {
     var body: some View {
         OnboardingPage {
             Spacer()
-            Image(systemName: "alarm.waves.left.and.right.fill")
-                .font(.system(size: 64))
-                .foregroundStyle(.orange)
-                .accessibilityHidden(true)
+            BrandMark(size: 96)
             Text("Wake up knowing it works")
                 .font(.largeTitle.weight(.semibold))
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
             Text("Set a wake-up task, prepare this iPhone, and prove the alarm works before tonight.")
                 .font(.title3)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             VStack(spacing: 12) {
                 OnboardingFeatureRow(
                     systemImage: "lock.shield",
@@ -148,7 +145,7 @@ private struct DismissalMethodOnboardingStep: View {
                     detail: "Use your fridge, sink, or coffee machine. No printer needed."
                 )
             }
-            .buttonStyle(.borderedProminent)
+            .brandProminentButtonStyle()
             .controlSize(.large)
             Button(action: onQr) {
                 OnboardingChoiceLabel(
@@ -157,7 +154,7 @@ private struct DismissalMethodOnboardingStep: View {
                     detail: "Print or display a code somewhere away from bed."
                 )
             }
-            .buttonStyle(.bordered)
+            .brandGlassButtonStyle()
             .controlSize(.large)
         }
     }
@@ -334,7 +331,7 @@ private struct WakeUpTestOnboardingStep: View {
                 Spacer()
                 Image(systemName: store.onboardingTestPassed ? "checkmark.seal.fill" : "iphone.and.arrow.forward")
                     .font(.system(size: 64))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(store.onboardingTestPassed ? Color.brandGreen : .accentColor)
                     .accessibilityHidden(true)
                 Text(store.onboardingTestPassed ? "Your wake-up test passed" : "Lock your iPhone")
                     .font(.largeTitle.weight(.semibold))
@@ -344,6 +341,7 @@ private struct WakeUpTestOnboardingStep: View {
                     .font(.title3)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                 if store.onboardingTestPassed {
                     VStack(spacing: 12) {
                         OnboardingResultRow("Notification delivery")
@@ -407,7 +405,7 @@ private struct ReadyOnboardingStep: View {
             Spacer()
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 72))
-                .foregroundStyle(.orange)
+                .foregroundStyle(Color.brandGreen)
                 .accessibilityHidden(true)
             Text("Ready for tonight")
                 .font(.largeTitle.weight(.semibold))
@@ -478,7 +476,7 @@ private struct OnboardingFeatureRow: View {
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: systemImage)
-                .foregroundStyle(.orange)
+                .foregroundStyle(.tint)
                 .frame(width: 28)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -486,11 +484,12 @@ private struct OnboardingFeatureRow: View {
                 Text(detail)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
         }
         .padding()
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .brandGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
@@ -505,7 +504,7 @@ private struct OnboardingPermissionRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: systemImage)
-                .foregroundStyle(.orange)
+                .foregroundStyle(.tint)
                 .frame(width: 28)
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
@@ -518,14 +517,14 @@ private struct OnboardingPermissionRow: View {
             if ready {
                 Label(value, systemImage: "checkmark.circle.fill")
                     .font(.caption)
-                    .foregroundStyle(.green)
+                    .foregroundStyle(Color.brandGreen)
             } else {
                 Button("Allow", action: action)
                     .buttonStyle(.bordered)
             }
         }
         .padding()
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .brandGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
@@ -541,7 +540,7 @@ private struct OnboardingResultRow: View {
             Label(title, systemImage: "checkmark.circle.fill")
             Spacer()
             Text("Passed")
-                .foregroundStyle(.green)
+                .foregroundStyle(Color.brandGreen)
         }
     }
 }
@@ -562,7 +561,7 @@ private struct OnboardingPrimaryButton: View {
             Text(title)
                 .frame(maxWidth: .infinity, minHeight: 50)
         }
-        .buttonStyle(.borderedProminent)
+        .brandProminentButtonStyle()
         .controlSize(.large)
         .disabled(!enabled)
     }

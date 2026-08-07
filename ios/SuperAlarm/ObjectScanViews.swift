@@ -214,7 +214,7 @@ private struct ObjectScanPanel: View {
                 Text(message)
                     .font(.body)
                 ProgressView(value: min(1, max(0, progress)))
-                    .tint(.mint)
+                    .tint(.brandGreen)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(20)

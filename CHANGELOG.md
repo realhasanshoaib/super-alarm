@@ -9,6 +9,11 @@
 
 ### iOS
 
+- Rethemed the app around the logo's navy blue with an adaptive accent color, replacing the orange tint across the alarm editor, dial, weekday picker, onboarding, and scanners.
+- Adopted Liquid Glass on iOS 26 (glass dial, cards, and button styles) with material fallbacks on earlier releases.
+- Redesigned the ringing screen as a night sky in the logo's navy with a subtle star field and glass scan buttons.
+- Replaced the placeholder launch logo with the real Super Alarm logo on an off-white launch screen matching Android's splash, and added the logo to Settings and onboarding so the app is identifiable in-app.
+- Styled Settings with iOS-style icon tiles that carry the logo's navy, orange, and green as small accents.
 - Added an interactive AlarmKit handoff preview covering the system alert, scan-to-dismiss action, QR and object scanners, valid dismissal, and the system Stop escape hatch.
 - Added main-actor isolation for UI state and lightweight SwiftUI Canvas previews for the alarm editor and onboarding screens.
 

@@ -14,7 +14,6 @@ struct RootView: View {
             NavigationStack { SettingsHealthView() }
                 .tabItem { Label("Settings", systemImage: "gearshape") }
         }
-        .tint(.orange)
         .sheet(item: $store.activeSheet) { route in
             switch route {
             case .addObject:
@@ -139,7 +138,7 @@ struct AlarmEditorView: View {
                         } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: store.state.alarm.allowedLocationIds.contains(spot.id) ? "mappin.and.ellipse" : "mappin.slash")
-                                    .foregroundStyle(.orange)
+                                    .foregroundStyle(.tint)
                                     .frame(width: 28)
                                 VStack(alignment: .leading) {
                                     Text(spot.label)
@@ -208,8 +207,8 @@ struct SignatureDialView: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(.thinMaterial)
-                .shadow(color: .black.opacity(0.10), radius: 18, y: 8)
+                .fill(.clear)
+                .brandGlass(in: Circle())
             Circle()
                 .strokeBorder(.secondary.opacity(0.14), lineWidth: 1)
             ForEach(0..<60, id: \.self) { tick in
@@ -221,19 +220,19 @@ struct SignatureDialView: View {
             }
             Circle()
                 .trim(from: 0, to: progress)
-                .stroke(.orange, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                .stroke(.tint, style: StrokeStyle(lineWidth: 4, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .padding(2)
             Circle()
-                .fill(.orange)
+                .fill(.tint)
                 .frame(width: 26, height: 26)
                 .offset(y: -135)
                 .rotationEffect(.degrees(progress * 360))
-                .shadow(color: .orange.opacity(0.35), radius: 8)
+                .shadow(color: Color.accentColor.opacity(0.35), radius: 8)
             VStack(spacing: 8) {
                 Image(systemName: isEnabled ? "bell.fill" : "bell.slash")
                     .font(.title3)
-                    .foregroundStyle(isEnabled ? .orange : .secondary)
+                    .foregroundStyle(isEnabled ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                 Text(hourText)
                     .font(.system(size: 48, weight: .light, design: .rounded))
                     .monospacedDigit()
@@ -260,7 +259,7 @@ struct WeekdayPickerView: View {
                         .frame(maxWidth: .infinity, minHeight: 32)
                 }
                 .buttonStyle(.bordered)
-                .tint(selected.indices.contains(index) && selected[index] ? .orange : .secondary)
+                .tint(selected.indices.contains(index) && selected[index] ? .accentColor : .secondary)
                 .accessibilityLabel(labels[index])
                 .accessibilityValue(selected.indices.contains(index) && selected[index] ? "Selected" : "Not selected")
             }
@@ -354,12 +353,30 @@ struct SettingsHealthView: View {
 
     var body: some View {
         List {
+            Section {
+                VStack(spacing: 12) {
+                    BrandMark(size: 72)
+                    VStack(spacing: 2) {
+                        Text("Super Alarm")
+                            .font(.title3.weight(.semibold))
+                        Text("Version \(appVersion)")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .accessibilityElement(children: .combine)
+            }
+
             Section("Preferences") {
                 HealthRow(
                     systemImage: "bell.fill",
                     title: "Notifications",
                     value: store.health.notificationLabel,
-                    tint: .orange
+                    tint: .accentColor
                 ) {
                     store.requestNotifications()
                 }
@@ -367,7 +384,7 @@ struct SettingsHealthView: View {
                     systemImage: "checkmark.shield.fill",
                     title: "Critical Alerts",
                     value: store.health.criticalLabel,
-                    tint: .orange
+                    tint: .brandOrange
                 ) {
                     store.requestNotifications()
                 }
@@ -375,7 +392,7 @@ struct SettingsHealthView: View {
                     systemImage: "camera.fill",
                     title: "Camera",
                     value: "Requested when scanning",
-                    tint: .orange
+                    tint: .gray
                 ) { }
             }
 
@@ -383,12 +400,20 @@ struct SettingsHealthView: View {
                 Button {
                     store.runTestAlarm()
                 } label: {
-                    Label("Test Alarm", systemImage: "flask")
+                    HStack(spacing: 12) {
+                        SettingsIconTile(systemImage: "flask.fill", tint: .brandGreen)
+                        Text("Test Alarm")
+                            .foregroundStyle(.primary)
+                    }
                 }
                 Button {
                     store.activeSheet = .diagnostics
                 } label: {
-                    Label("Diagnostics", systemImage: "info.circle")
+                    HStack(spacing: 12) {
+                        SettingsIconTile(systemImage: "info", tint: .brandNavy)
+                        Text("Diagnostics")
+                            .foregroundStyle(.primary)
+                    }
                 }
             }
 
@@ -408,13 +433,31 @@ struct SettingsHealthView: View {
             }
 
             Section("About") {
-                LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0")
+                LabeledContent("Version", value: appVersion)
                 LabeledContent("Bundle ID", value: Bundle.main.bundleIdentifier ?? "com.superalarm.app")
             }
         }
         .navigationTitle("Settings")
         .refreshable { await store.refreshHealth() }
         .task { await store.refreshHealth() }
+    }
+
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
+    }
+}
+
+struct SettingsIconTile: View {
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        Image(systemName: systemImage)
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(.white)
+            .frame(width: 29, height: 29)
+            .background(tint, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .accessibilityHidden(true)
     }
 }
 
@@ -428,9 +471,7 @@ struct HealthRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                Image(systemName: systemImage)
-                    .foregroundStyle(tint)
-                    .frame(width: 28)
+                SettingsIconTile(systemImage: systemImage, tint: tint)
                 Text(title)
                     .foregroundStyle(.primary)
                 Spacer()
@@ -480,13 +521,15 @@ struct RingingView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(colors: [Color.black, Color(white: 0.08)], startPoint: .top, endPoint: .bottom)
+            LinearGradient(colors: [Color.brandNight, Color.brandNavy], startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea()
+            NightSkyView()
                 .ignoresSafeArea()
             VStack(spacing: 28) {
                 Spacer()
                 Text("ALARM RINGING")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Color.brandSky)
                 Text(timeString)
                     .font(.system(size: 54, weight: .light, design: .rounded))
                     .monospacedDigit()
@@ -504,8 +547,9 @@ struct RingingView: View {
                             Label("Scan Object", systemImage: "camera.viewfinder")
                                 .frame(maxWidth: .infinity, minHeight: 54)
                         }
-                        .buttonStyle(.borderedProminent)
+                        .brandProminentButtonStyle()
                         .controlSize(.large)
+                        .tint(.brandSky)
                         .accessibilityHint("Opens the object scanner to dismiss the alarm")
                     }
                     if !store.allowedLocations.isEmpty {
@@ -515,9 +559,9 @@ struct RingingView: View {
                             Label("Scan QR", systemImage: "qrcode.viewfinder")
                                 .frame(maxWidth: .infinity, minHeight: 54)
                         }
-                        .buttonStyle(.bordered)
+                        .brandGlassButtonStyle()
                         .controlSize(.large)
-                        .tint(.orange)
+                        .tint(.white)
                     }
                 }
                 .padding(.top, 8)
@@ -593,7 +637,7 @@ struct RingingView: View {
                     }
                 }
             }
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .brandGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .frame(maxWidth: .infinity)
     }
@@ -611,6 +655,32 @@ struct RingingView: View {
     }
 }
 
+/// Fixed star field echoing the night sky in the Super Alarm logo.
+struct NightSkyView: View {
+    private static let stars: [(x: CGFloat, y: CGFloat, radius: CGFloat, opacity: CGFloat)] = [
+        (0.12, 0.10, 1.4, 0.55), (0.30, 0.06, 1.0, 0.35), (0.52, 0.13, 1.8, 0.6),
+        (0.70, 0.05, 1.2, 0.4), (0.88, 0.11, 1.5, 0.5), (0.08, 0.24, 1.0, 0.3),
+        (0.42, 0.21, 1.2, 0.4), (0.63, 0.27, 1.0, 0.3), (0.81, 0.22, 1.3, 0.45),
+        (0.20, 0.33, 1.5, 0.5), (0.94, 0.31, 1.0, 0.35), (0.35, 0.40, 1.1, 0.3)
+    ]
+
+    var body: some View {
+        Canvas { context, size in
+            for star in Self.stars {
+                let rect = CGRect(
+                    x: star.x * size.width - star.radius,
+                    y: star.y * size.height - star.radius,
+                    width: star.radius * 2,
+                    height: star.radius * 2
+                )
+                context.fill(Path(ellipseIn: rect), with: .color(.white.opacity(star.opacity)))
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
 struct DismissedOverlay: View {
     let onDone: () -> Void
 
@@ -618,11 +688,11 @@ struct DismissedOverlay: View {
         VStack(spacing: 18) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 68))
-                .foregroundStyle(.green)
+                .foregroundStyle(Color.brandGreen)
             Text("Dismissed")
                 .font(.largeTitle.bold())
             Button("Done", action: onDone)
-                .buttonStyle(.borderedProminent)
+                .brandProminentButtonStyle()
                 .controlSize(.large)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
