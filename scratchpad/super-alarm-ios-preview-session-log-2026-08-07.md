@@ -12,3 +12,4 @@
 - Added DEBUG-only in-file SwiftUI previews for the alarm editor and onboarding flow, backed by deterministic mock alarm, QR, object, and notification-health data. This avoided adding a new source file or changing Xcode project membership.
 - Rebuilt the changed project remotely successfully, launched it on the iPhone 17 Pro simulator, and captured the onboarding screen. The app stayed running after the main-actor fix.
 - Shut down the simulator, removed the isolated remote checkout and build artifacts, verified the temporary path was gone, and moved the local verification screenshot to Trash.
+- Opened `ios/SuperAlarm.xcworkspace` in Xcode, selected `AppViews.swift`, and enabled the SwiftUI Canvas. Xcode began downloading the official iOS 26.5 runtime required to render the Canvas; the preview pane remains in `Downloading iOS 26.5…` state after several minutes, with low CPU usage.
