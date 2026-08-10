@@ -1,0 +1,1 @@
+Alarms now ring more reliably while your phone is locked. This update restores alarms after locked reboots, app updates, clock and timezone changes, and alarm-permission changes. It also adds clearer setup help for Vivo, Samsung, Xiaomi, OPPO, OnePlus, Huawei, and other Android phones.

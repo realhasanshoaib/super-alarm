@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## Android 1.4.1 / iOS 1.4.0 — 2026-08-10
 
 ### Android
 

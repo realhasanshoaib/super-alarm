@@ -50,12 +50,12 @@ You don't need a louder alarm. You need one you can't dismiss from under the cov
 Super Alarm only stops when you get out of bed and scan a real object in your home — your fridge, your mirror, your coffee machine — or a QR spot placed across the room. By the time you've dismissed it, you're already up.
 
 Made for heavy sleepers and chronic snoozers:
-- Enroll any household object with a Face ID-style guided sweep that captures useful views automatically. No printer, no stickers.
+- Enroll any household object with a guided object scan that captures useful views automatically. No printer, no stickers.
 - Or create a QR spot for the bathroom or kitchen.
 - Walking across the room breaks the half-asleep snooze loop for good.
 
 Built to be trusted:
-- Scheduled notification wake flow with backup notifications.
+- Scheduled notification wake flow with an in-app dismissal challenge.
 - A reliability checklist so your phone settings can't silence you.
 - Local diagnostics export when you want to verify reliability yourself.
 
@@ -69,4 +69,4 @@ Wake up on time. Get out of bed. Start the morning on your feet.
 No account required. Scan an object or create a QR spot, grant alarm, notification, full-screen, and camera permissions when prompted, then use Test Alarm to verify dismissal.
 
 ## Apple review notes
-No account required. Scan an object or create a QR spot, allow notifications and camera, enable the alarm, then use Test Alarm. On iOS, alarm delivery uses local notifications; tap the notification to open the dismissal flow. Object images remain on device and are not stored.
+No account required. Scan an object or create a QR spot, allow notifications and camera, enable the alarm, then use Test Alarm. On iOS, alarm delivery uses standard local notifications; tap the notification to open the dismissal flow. Critical Alerts are not enabled in this build. Object fingerprints and one representative thumbnail remain on device in private app storage.

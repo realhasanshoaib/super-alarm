@@ -1,13 +1,13 @@
 # iOS Critical Alerts Notes
 
-Super Alarm now includes the iOS Critical Alerts entitlement key in `SuperAlarm/SuperAlarm.entitlements` and requests `.criticalAlert` authorization only when the entitlement is present at runtime.
+Super Alarm supports the iOS Critical Alerts authorization path in code, but the App Store build does not include the entitlement until Apple approves it. The shipped fallback uses standard local notifications.
 
 Operational notes:
 
 - Bundle id remains `com.superalarm.app`.
-- Apple must approve Critical Alerts for the app before App Store distribution can use the entitlement.
+- Apple must approve Critical Alerts for the app before the entitlement is added to an App Store build.
 - Provisioning profiles must include `com.apple.developer.usernotifications.critical-alerts`; otherwise device/archive signing can fail or the runtime entitlement check will report missing.
-- When the entitlement or user authorization is unavailable, the app schedules regular local notifications and surfaces the fallback state in Settings.
+- The current release has no Critical Alerts entitlement, so the app schedules regular local notifications and surfaces the fallback state in Settings.
 - Even with Critical Alerts, iOS delivery is system-owned. Super Alarm starts continuous in-app audio only after the user opens the notification/app.
 
 Verification before iOS parity signoff:
