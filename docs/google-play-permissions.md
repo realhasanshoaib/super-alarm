@@ -2,9 +2,9 @@
 
 ## Exact alarm
 
-Core use case: alarm app. Super Alarm schedules precise user-configured wake alarms and backup re-rings. Without exact alarm behavior, the core product is broken.
+Core use case: dedicated alarm app. Super Alarm schedules precise user-configured wake alarms and backup re-rings. Without exact alarm behavior, the core product is broken. Android 13 and later use the automatically granted `USE_EXACT_ALARM` permission because Google Play lists dedicated alarm apps as an allowed core use case. Android 12 and 12L keep the user-granted `SCHEDULE_EXACT_ALARM` path.
 
-Evidence: `android/app/src/main/java/com/superalarm/app/alarm/AlarmScheduler.kt` uses `setAlarmClock` for the main alarm and `setExactAndAllowWhileIdle` for backup alarms. `android/app/src/main/java/com/superalarm/app/ui/SuperAlarmApp.kt` exposes the exact-alarm capability and system setting.
+Evidence: `android/app/src/main/AndroidManifest.xml` scopes the two permissions by Android version. `android/app/src/main/java/com/superalarm/app/alarm/AlarmScheduler.kt` uses `setAlarmClock` for the main alarm and user-visible backup rings. `android/app/src/main/java/com/superalarm/app/ui/SuperAlarmApp.kt` exposes exact-alarm readiness.
 
 ## Full-screen intent
 
@@ -30,7 +30,7 @@ Evidence: `android/app/src/main/AndroidManifest.xml` declares `FOREGROUND_SERVIC
 
 ## Notifications / boot / wake lock / vibration
 
-Used for reliable local alarm ringing, backup rings, restart restore, and alerting.
+Used for reliable local alarm ringing, backup rings, restart restore, and alerting. Alarm preferences use Android device-protected storage so the app can restore a scheduled alarm after a reboot before the first unlock. The media player holds a partial wake lock only while alarm audio is playing.
 
 Evidence: `android/app/src/main/AndroidManifest.xml`, `android/app/src/main/java/com/superalarm/app/alarm/AlarmRingingService.kt`, and `android/app/src/main/java/com/superalarm/app/alarm/AlarmBootReceiver.kt`.
 

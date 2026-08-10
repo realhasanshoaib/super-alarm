@@ -2,6 +2,8 @@ package com.superalarm.app.alarm
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Build
+import android.os.UserManager
 import org.json.JSONObject
 
 data class StoredAlarmConfig(
@@ -24,8 +26,32 @@ data class PendingAlarmLaunch(
 )
 
 object AlarmStorage {
+  fun migrateToDeviceProtectedStorage(context: Context) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+      return
+    }
+
+    val appContext = context.applicationContext
+    if (appContext.isDeviceProtectedStorage) {
+      return
+    }
+
+    val userManager = appContext.getSystemService(Context.USER_SERVICE) as UserManager
+    if (!userManager.isUserUnlocked) {
+      return
+    }
+
+    appContext.createDeviceProtectedStorageContext()
+      .moveSharedPreferencesFrom(appContext, AlarmConstants.PREFS_NAME)
+  }
+
   private fun prefs(context: Context): SharedPreferences =
-    context.getSharedPreferences(AlarmConstants.PREFS_NAME, Context.MODE_PRIVATE)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+      context.createDeviceProtectedStorageContext()
+        .getSharedPreferences(AlarmConstants.PREFS_NAME, Context.MODE_PRIVATE)
+    } else {
+      context.getSharedPreferences(AlarmConstants.PREFS_NAME, Context.MODE_PRIVATE)
+    }
 
   fun saveAlarmConfig(context: Context, config: StoredAlarmConfig) {
     prefs(context).edit()

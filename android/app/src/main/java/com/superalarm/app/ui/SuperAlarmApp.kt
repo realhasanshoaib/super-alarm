@@ -78,7 +78,9 @@ import com.superalarm.app.BuildConfig
 import com.superalarm.app.data.AlarmConfig
 import com.superalarm.app.data.AlarmAttempt
 import com.superalarm.app.data.AppState
+import com.superalarm.app.data.DeviceSupport
 import com.superalarm.app.data.alarmWaitMinutes
+import com.superalarm.app.data.deviceSupportForManufacturer
 import com.superalarm.app.data.sleepWakeTimeMinutes
 import com.superalarm.app.data.SuperAlarmStore
 import com.superalarm.app.features.objectscan.ObjectEnrollmentScreen
@@ -461,16 +463,26 @@ private fun DayPicker(selected: List<Int>, onDay: (Int) -> Unit) {
 @Composable
 private fun HealthScreen(modifier: Modifier, state: AppState, store: SuperAlarmStore) {
   var refreshKey by remember { mutableStateOf(0) }
+  var notificationDenied by remember { mutableStateOf(false) }
   val caps = remember(refreshKey) { store.capabilities() }
   val context = LocalContext.current
-  val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { refreshKey++ }
+  val deviceSupport = remember { deviceSupportForManufacturer(Build.MANUFACTURER) }
+  val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+    notificationDenied = !granted
+    refreshKey++
+  }
   LazyColumn(modifier = modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)) {
     item { HealthRow("Notifications", caps.notificationsGranted, "Required for foreground alarm alerts") {
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+      if (store.notificationPermissionGranted() || notificationDenied || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+        store.openNotificationSettings()
+      } else {
+        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+      }
     } }
     item { HealthRow("Exact alarms", caps.exactAlarmAllowed, "Required for reliable wake-up time", store::openExactAlarmSettings) }
     item { HealthRow("Full-screen intent", caps.fullscreenIntentAllowed, "Opens the ringing screen while locked", store::openFullscreenSettings) }
     item { HealthRow("Battery optimization", caps.batteryOptimizationRelaxed, "Relax this if alarms are delayed", store::openBatterySettings) }
+    item { DeviceSupportHealthRow(deviceSupport = deviceSupport, onAction = store::openDeviceSupportSettings) }
     item { Button(onClick = store::startRoutineTest, modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(52.dp)) { Text("Run routine test") } }
     item { OutlinedButton(onClick = { shareText(context, store.diagnosticsJson()) }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(52.dp)) { Text("Export diagnostics") } }
     item {
@@ -538,6 +550,23 @@ private fun HealthRow(title: String, ok: Boolean, detail: String, onClick: () ->
     supportingContent = { Text(detail) },
     leadingContent = { Box(Modifier.size(12.dp).background(if (ok) Color(0xFF2E7D32) else Color(0xFFC2410C), CircleShape)) },
     trailingContent = { if (!ok) TextButton(onClick = onClick) { Text("Open") } },
+  )
+}
+
+@Composable
+private fun DeviceSupportHealthRow(
+  deviceSupport: DeviceSupport?,
+  onAction: () -> Unit,
+) {
+  ListItem(
+    headlineContent = { Text("${deviceSupport?.label ?: "Device"} background access · recommended") },
+    supportingContent = {
+      Text(
+        "${deviceSupport?.instruction ?: "Check Battery or Background activity settings and allow Super Alarm to run unrestricted."} Android cannot report this setting back to Super Alarm.",
+      )
+    },
+    leadingContent = { Box(Modifier.size(12.dp).background(MaterialTheme.colorScheme.primary, CircleShape)) },
+    trailingContent = { TextButton(onClick = onAction) { Text("Open") } },
   )
 }
 

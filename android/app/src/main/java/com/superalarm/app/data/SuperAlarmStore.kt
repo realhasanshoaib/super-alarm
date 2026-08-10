@@ -3,6 +3,8 @@ package com.superalarm.app.data
 import android.Manifest
 import android.app.AlarmManager
 import android.app.NotificationManager
+import android.content.ActivityNotFoundException
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -330,12 +332,16 @@ class SuperAlarmStore(
     val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
     return ReliabilityChecklistState(
-      notificationsGranted = NotificationManagerCompat.from(context).areNotificationsEnabled(),
+      notificationsGranted = NotificationManagerCompat.from(context).areNotificationsEnabled() && notificationChannelReady(notificationManager),
       exactAlarmAllowed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) alarmManager.canScheduleExactAlarms() else true,
       fullscreenIntentAllowed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) notificationManager.canUseFullScreenIntent() else true,
       batteryOptimizationRelaxed = powerManager.isIgnoringBatteryOptimizations(context.packageName),
     )
   }
+
+  fun notificationPermissionGranted(): Boolean =
+    Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+      ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
   fun cameraGranted(): Boolean = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
@@ -347,9 +353,27 @@ class SuperAlarmStore(
   fun openExactAlarmSettings() = openSettings(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
 
   fun openNotificationSettings() {
-    openSettings(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-      putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-    })
+    val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
+        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+        putExtra(Settings.EXTRA_CHANNEL_ID, AlarmConstants.NOTIFICATION_CHANNEL_ID)
+      }
+    } else {
+      Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+      }
+    }
+    openSettings(intent)
+  }
+
+  fun openDeviceSupportSettings() {
+    val support = deviceSupportForManufacturer(Build.MANUFACTURER)
+    support?.settingsComponents?.forEach { component ->
+      if (tryOpenSettings(Intent().setComponent(ComponentName(component.packageName, component.className)))) {
+        return
+      }
+    }
+    openAppDetailsSettings()
   }
 
   fun openFullscreenSettings() {
@@ -370,6 +394,9 @@ class SuperAlarmStore(
       put("batteryOptimizationRelaxed", caps.batteryOptimizationRelaxed)
       put("cameraGranted", cameraGranted())
       put("platform", "android")
+      put("manufacturer", Build.MANUFACTURER)
+      put("model", Build.MODEL)
+      put("sdkInt", Build.VERSION.SDK_INT)
     })
   }.toString(2)
 
@@ -498,6 +525,26 @@ class SuperAlarmStore(
     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     context.startActivity(intent)
   }
+
+  private fun tryOpenSettings(intent: Intent): Boolean = try {
+    openSettings(intent)
+    true
+  } catch (_: ActivityNotFoundException) {
+    false
+  } catch (_: SecurityException) {
+    false
+  }
+
+  private fun openAppDetailsSettings() {
+    openSettings(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+      data = Uri.parse("package:${context.packageName}")
+    })
+  }
+
+  private fun notificationChannelReady(notificationManager: NotificationManager): Boolean =
+    Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+      (notificationManager.getNotificationChannel(AlarmConstants.NOTIFICATION_CHANNEL_ID)?.importance ?: NotificationManager.IMPORTANCE_NONE) >=
+      NotificationManager.IMPORTANCE_HIGH
 
   companion object {
     private const val KEY_STATE = "state"

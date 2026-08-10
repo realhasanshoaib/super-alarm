@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Android
+
+- Made locked-screen alarms more reliable across Vivo, Samsung, Xiaomi, OPPO, OnePlus, Huawei, and other Android phones by removing a blocked background launch path and adding device-specific setup guidance.
+- Restored alarms after locked reboots, app updates, clock or timezone changes, and exact-alarm permission changes.
+- Kept alarm audio awake while ringing, detected muted alarm notification channels, and fixed backup rings that were canceled when the next alarm was scheduled.
+
 ### Google Play
 
 - Added a branded eight-image phone screenshot set built from the current app captures, with truthful feature headlines and an upload-ready 1080x1920 opaque PNG format.

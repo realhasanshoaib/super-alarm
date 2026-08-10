@@ -15,6 +15,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
 import androidx.core.app.NotificationCompat
@@ -38,7 +39,7 @@ class AlarmRingingService : Service() {
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
     isAlarmActive = true
-    ensureChannel()
+    ensureNotificationChannel(this)
 
     val alarmId = intent?.getStringExtra(AlarmConstants.EXTRA_ALARM_ID) ?: "morning-alarm"
     val attemptId = intent?.getStringExtra(AlarmConstants.EXTRA_ATTEMPT_ID) ?: "attempt-${System.currentTimeMillis()}"
@@ -64,17 +65,6 @@ class AlarmRingingService : Service() {
     )
 
     startForeground(AlarmConstants.NOTIFICATION_ID, buildNotification(fullScreenIntent, kind, backupStage))
-    startActivity(
-      Intent(this, MainActivity::class.java).apply {
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        putExtra(AlarmConstants.EXTRA_LAUNCH_ALARM, true)
-        putExtra(AlarmConstants.EXTRA_ALARM_ID, alarmId)
-        putExtra(AlarmConstants.EXTRA_ATTEMPT_ID, attemptId)
-        putExtra(AlarmConstants.EXTRA_KIND, kind)
-        putExtra(AlarmConstants.EXTRA_TRIGGERED_AT, triggeredAt)
-        putExtra(AlarmConstants.EXTRA_BACKUP_STAGE, backupStage)
-      },
-    )
 
     startAudio(soundId)
     if (vibrationEnabled) {
@@ -105,24 +95,6 @@ class AlarmRingingService : Service() {
       .setContentIntent(fullScreenIntent)
       .build()
 
-  private fun ensureChannel() {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-      return
-    }
-
-    val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-    val channel = NotificationChannel(
-      AlarmConstants.NOTIFICATION_CHANNEL_ID,
-      "Super Alarm",
-      NotificationManager.IMPORTANCE_HIGH,
-    ).apply {
-      description = "Super Alarm wake-up flow"
-      setBypassDnd(true)
-      lockscreenVisibility = Notification.VISIBILITY_PUBLIC
-    }
-    manager.createNotificationChannel(channel)
-  }
-
   private fun startAudio(soundId: String) {
     stopAudio()
 
@@ -133,6 +105,7 @@ class AlarmRingingService : Service() {
     } ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
 
     mediaPlayer = MediaPlayer().apply {
+      setWakeMode(applicationContext, PowerManager.PARTIAL_WAKE_LOCK)
       setAudioAttributes(
         AudioAttributes.Builder()
           .setUsage(AudioAttributes.USAGE_ALARM)
@@ -207,5 +180,23 @@ class AlarmRingingService : Service() {
     private var isAlarmActive = false
 
     fun isActive(): Boolean = isAlarmActive
+
+    fun ensureNotificationChannel(context: Context) {
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+        return
+      }
+
+      val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+      val channel = NotificationChannel(
+        AlarmConstants.NOTIFICATION_CHANNEL_ID,
+        "Super Alarm",
+        NotificationManager.IMPORTANCE_HIGH,
+      ).apply {
+        description = "Super Alarm wake-up flow"
+        setBypassDnd(true)
+        lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+      }
+      manager.createNotificationChannel(channel)
+    }
   }
 }

@@ -67,10 +67,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.superalarm.app.data.AppState
+import com.superalarm.app.data.DeviceSupport
 import com.superalarm.app.data.OnboardingSteps
 import com.superalarm.app.data.QrLocation
 import com.superalarm.app.data.ReliabilityChecklistState
 import com.superalarm.app.data.SuperAlarmStore
+import com.superalarm.app.data.deviceSupportForManufacturer
 import com.superalarm.app.data.onboardingTestPassed
 import com.superalarm.app.features.qr.qrBitmap
 import kotlinx.coroutines.delay
@@ -90,6 +92,7 @@ fun OnboardingScreen(
   var notificationDenied by remember { mutableStateOf(false) }
   var onboardingQr by remember { mutableStateOf<QrLocation?>(null) }
   val capabilities = remember(refreshKey, step) { store.capabilities() }
+  val deviceSupport = remember { deviceSupportForManufacturer(Build.MANUFACTURER) }
   val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
     notificationDenied = !granted
     refreshKey++
@@ -153,9 +156,11 @@ fun OnboardingScreen(
         )
         OnboardingSteps.PhoneSetup -> PhoneSetupStep(
           capabilities = capabilities,
+          deviceSupport = deviceSupport,
+          notificationPermissionGranted = store.notificationPermissionGranted(),
           notificationDenied = notificationDenied,
           onNotifications = {
-            if (notificationDenied || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            if (store.notificationPermissionGranted() || notificationDenied || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
               store.openNotificationSettings()
             } else {
               notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -164,6 +169,7 @@ fun OnboardingScreen(
           onExactAlarm = store::openExactAlarmSettings,
           onFullscreen = store::openFullscreenSettings,
           onBattery = store::openBatterySettings,
+          onDeviceSupport = store::openDeviceSupportSettings,
           onRunTest = {
             if (store.scheduleOnboardingTest()) {
               refreshKey++
@@ -388,11 +394,14 @@ private fun AlarmStep(
 @Composable
 private fun PhoneSetupStep(
   capabilities: ReliabilityChecklistState,
+  deviceSupport: DeviceSupport?,
+  notificationPermissionGranted: Boolean,
   notificationDenied: Boolean,
   onNotifications: () -> Unit,
   onExactAlarm: () -> Unit,
   onFullscreen: () -> Unit,
   onBattery: () -> Unit,
+  onDeviceSupport: () -> Unit,
   onRunTest: () -> Unit,
 ) {
   val requiredReady = capabilities.notificationsGranted &&
@@ -409,7 +418,7 @@ private fun PhoneSetupStep(
       title = "Notifications",
       detail = "Shows the alarm and keeps it running.",
       ready = capabilities.notificationsGranted,
-      actionLabel = if (notificationDenied) "Settings" else "Allow",
+      actionLabel = if (notificationPermissionGranted || notificationDenied) "Settings" else "Allow",
       onAction = onNotifications,
     )
     PermissionRow(
@@ -434,6 +443,7 @@ private fun PhoneSetupStep(
       actionLabel = "Open",
       onAction = onBattery,
     )
+    DeviceSupportRow(deviceSupport = deviceSupport, onAction = onDeviceSupport)
     Spacer(Modifier.weight(1f))
     Button(
       onClick = onRunTest,
@@ -442,6 +452,25 @@ private fun PhoneSetupStep(
     ) {
       Text(if (requiredReady) "Run wake-up test" else "Prepare required settings")
     }
+  }
+}
+
+@Composable
+private fun DeviceSupportRow(
+  deviceSupport: DeviceSupport?,
+  onAction: () -> Unit,
+) {
+  Card(modifier = Modifier.fillMaxWidth()) {
+    ListItem(
+      headlineContent = { Text("${deviceSupport?.label ?: "Device"} background access · recommended") },
+      supportingContent = {
+        Text(
+          "${deviceSupport?.instruction ?: "Check Battery or Background activity settings and allow Super Alarm to run unrestricted."} Android cannot report this setting back to Super Alarm.",
+        )
+      },
+      leadingContent = { Icon(Icons.Default.Power, contentDescription = null) },
+      trailingContent = { TextButton(onClick = onAction) { Text("Open") } },
+    )
   }
 }
 

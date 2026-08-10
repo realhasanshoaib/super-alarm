@@ -46,10 +46,10 @@ object AlarmScheduler {
 
     previousTriggerAtMillis?.let { cancelOccurrence(context, config, it, "test") }
     val triggerAtMillis = nowMillis + delayMillis.coerceAtLeast(5_000L)
-    val launchIntent = buildLaunchPendingIntent(context, config.alarmId, triggerAtMillis, 0, "test")
+    val showIntent = buildShowPendingIntent(context, config.alarmId, triggerAtMillis, 0, "test")
     val receiverIntent = buildReceiverPendingIntent(context, config.alarmId, triggerAtMillis, 0, "test", config)
     alarmManager.setAlarmClock(
-      AlarmManager.AlarmClockInfo(triggerAtMillis, launchIntent),
+      AlarmManager.AlarmClockInfo(triggerAtMillis, showIntent),
       receiverIntent,
     )
     return triggerAtMillis
@@ -61,7 +61,7 @@ object AlarmScheduler {
       AlarmStorage.setScheduledTriggerAt(context, 0L)
       return
     }
-    val showIntent = buildLaunchPendingIntent(context, config.alarmId, triggerAtMillis, 0, "live")
+    val showIntent = buildShowPendingIntent(context, config.alarmId, triggerAtMillis, 0, "live")
     val mainPendingIntent = buildReceiverPendingIntent(context, config.alarmId, triggerAtMillis, 0, "live", config)
 
     alarmManager.setAlarmClock(
@@ -73,15 +73,25 @@ object AlarmScheduler {
       val backupStage = index + 1
       val backupTriggerAt = triggerAtMillis + offsetSeconds * 1_000L
       val backupIntent = buildReceiverPendingIntent(context, config.alarmId, triggerAtMillis, backupStage, "live", config)
+      val backupShowIntent = buildShowPendingIntent(context, config.alarmId, triggerAtMillis, backupStage, "live")
 
-      alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, backupTriggerAt, backupIntent)
+      alarmManager.setAlarmClock(
+        AlarmManager.AlarmClockInfo(backupTriggerAt, backupShowIntent),
+        backupIntent,
+      )
     }
 
     AlarmStorage.setScheduledTriggerAt(context, triggerAtMillis)
   }
 
   fun scheduleNextAfterTrigger(context: Context, config: StoredAlarmConfig, triggerAtMillis: Long) {
-    scheduleNext(context, config, triggerAtMillis + 60_000L)
+    if (!config.enabled || config.repeatDays.isEmpty()) {
+      AlarmStorage.setScheduledTriggerAt(context, 0L)
+      return
+    }
+
+    val nextTriggerAtMillis = computeNextTriggerMillis(config, triggerAtMillis + 60_000L)
+    scheduleOccurrence(context, config, nextTriggerAtMillis)
   }
 
   fun cancelUpcoming(context: Context, config: StoredAlarmConfig) {
@@ -115,7 +125,7 @@ object AlarmScheduler {
     }
   }
 
-  private fun buildLaunchPendingIntent(
+  private fun buildShowPendingIntent(
     context: Context,
     alarmId: String,
     triggerAtMillis: Long,
@@ -124,11 +134,6 @@ object AlarmScheduler {
   ): PendingIntent {
     val intent = Intent(context, MainActivity::class.java).apply {
       flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-      putExtra(AlarmConstants.EXTRA_LAUNCH_ALARM, true)
-      putExtra(AlarmConstants.EXTRA_ALARM_ID, alarmId)
-      putExtra(AlarmConstants.EXTRA_TRIGGER_AT_MILLIS, triggerAtMillis)
-      putExtra(AlarmConstants.EXTRA_BACKUP_STAGE, backupStage)
-      putExtra(AlarmConstants.EXTRA_KIND, kind)
     }
 
     return PendingIntent.getActivity(
