@@ -2,7 +2,6 @@ import AVFoundation
 import CoreImage.CIFilterBuiltins
 import SwiftUI
 import UIKit
-import VisionKit
 
 struct RootView: View {
     @EnvironmentObject private var store: AppStore
@@ -26,7 +25,7 @@ struct RootView: View {
                 QrSpotDetailView(spot: spot)
             }
         }
-        .fullScreenCover(isPresented: $store.isRingingPresented) {
+        .fullScreenCover(isPresented: regularRingingBinding) {
             RingingView()
         }
         .fullScreenCover(isPresented: onboardingBinding) {
@@ -43,6 +42,13 @@ struct RootView: View {
         Binding(
             get: { !store.state.hasCompletedOnboarding },
             set: { _ in }
+        )
+    }
+
+    private var regularRingingBinding: Binding<Bool> {
+        Binding(
+            get: { store.state.hasCompletedOnboarding && store.isRingingPresented },
+            set: { if !$0 { store.isRingingPresented = false } }
         )
     }
 
@@ -730,55 +736,28 @@ struct QrCodeView: View {
 struct QrScannerView: UIViewControllerRepresentable {
     let onScan: (String) -> Void
 
-    func makeUIViewController(context: Context) -> UIViewController {
-        if #available(iOS 16.0, *), DataScannerViewController.isSupported, DataScannerViewController.isAvailable {
-            let scanner = DataScannerViewController(
-                recognizedDataTypes: [.barcode(symbologies: [.qr])],
-                qualityLevel: .balanced,
-                recognizesMultipleItems: false,
-                isHighFrameRateTrackingEnabled: false,
-                isHighlightingEnabled: true
-            )
-            scanner.delegate = context.coordinator
-            try? scanner.startScanning()
-            return scanner
-        }
-        return AvFoundationScannerViewController(onScan: onScan)
+    func makeUIViewController(context: Context) -> AvFoundationScannerViewController {
+        AvFoundationScannerViewController(onScan: onScan)
     }
 
-    func updateUIViewController(_ uiViewController: UIViewController, context: Context) { }
+    func updateUIViewController(_ uiViewController: AvFoundationScannerViewController, context: Context) { }
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator(onScan: onScan)
-    }
-
-    final class Coordinator: NSObject, DataScannerViewControllerDelegate {
-        let onScan: (String) -> Void
-        init(onScan: @escaping (String) -> Void) { self.onScan = onScan }
-
-        @available(iOS 16.0, *)
-        func dataScanner(_ dataScanner: DataScannerViewController, didTapOn item: RecognizedItem) {
-            if case .barcode(let barcode) = item, let payload = barcode.payloadStringValue {
-                onScan(payload)
-            }
-        }
-
-        @available(iOS 16.0, *)
-        func dataScanner(_ dataScanner: DataScannerViewController, didAdd addedItems: [RecognizedItem], allItems: [RecognizedItem]) {
-            for item in addedItems {
-                if case .barcode(let barcode) = item, let payload = barcode.payloadStringValue {
-                    onScan(payload)
-                    break
-                }
-            }
-        }
+    static func dismantleUIViewController(
+        _ uiViewController: AvFoundationScannerViewController,
+        coordinator: Void
+    ) {
+        uiViewController.stop()
     }
 }
 
 final class AvFoundationScannerViewController: UIViewController, AVCaptureMetadataOutputObjectsDelegate {
     private let session = AVCaptureSession()
+    private let sessionQueue = DispatchQueue(label: "com.superalarm.qr-camera.session")
     private let onScan: (String) -> Void
+    private lazy var previewLayer = AVCaptureVideoPreviewLayer(session: session)
     private var didScan = false
+    private var isConfigured = false
+    private var shouldRun = false
 
     init(onScan: @escaping (String) -> Void) {
         self.onScan = onScan
@@ -790,49 +769,111 @@ final class AvFoundationScannerViewController: UIViewController, AVCaptureMetada
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .black
-        configure()
+        previewLayer.videoGravity = .resizeAspectFill
+        view.layer.addSublayer(previewLayer)
+        requestCamera()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        previewLayer.frame = view.bounds
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        sessionQueue.async { [weak self] in
+            guard let self else { return }
+            self.shouldRun = true
+            self.startIfReady()
+        }
     }
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        session.stopRunning()
+        stop()
+    }
+
+    func stop() {
+        sessionQueue.async { [weak self] in
+            guard let self else { return }
+            self.shouldRun = false
+            if self.session.isRunning { self.session.stopRunning() }
+        }
+    }
+
+    private func requestCamera() {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            configure()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                if granted {
+                    self?.configure()
+                } else {
+                    self?.showFallbackLabel("Camera access is required to scan a QR code.")
+                }
+            }
+        case .denied, .restricted:
+            showFallbackLabel("Camera access is required. Allow it in iOS Settings.")
+        @unknown default:
+            showFallbackLabel("Camera access is unavailable.")
+        }
     }
 
     private func configure() {
-        guard let device = AVCaptureDevice.default(for: .video), let input = try? AVCaptureDeviceInput(device: device), session.canAddInput(input) else {
-            showFallbackLabel("Camera is unavailable.")
-            return
-        }
-        session.addInput(input)
-        let output = AVCaptureMetadataOutput()
-        guard session.canAddOutput(output) else {
-            showFallbackLabel("QR scanning is unavailable.")
-            return
-        }
-        session.addOutput(output)
-        output.setMetadataObjectsDelegate(self, queue: .main)
-        output.metadataObjectTypes = [.qr]
+        sessionQueue.async { [weak self] in
+            guard let self, !self.isConfigured else { return }
+            self.session.beginConfiguration()
+            defer { self.session.commitConfiguration() }
 
-        let preview = AVCaptureVideoPreviewLayer(session: session)
-        preview.videoGravity = .resizeAspectFill
-        preview.frame = view.bounds
-        view.layer.addSublayer(preview)
-        DispatchQueue.global(qos: .userInitiated).async { self.session.startRunning() }
+            guard
+                let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+                let input = try? AVCaptureDeviceInput(device: device),
+                self.session.canAddInput(input)
+            else {
+                self.showFallbackLabel("Camera is unavailable.")
+                return
+            }
+            self.session.addInput(input)
+
+            let output = AVCaptureMetadataOutput()
+            guard self.session.canAddOutput(output) else {
+                self.showFallbackLabel("QR scanning is unavailable.")
+                return
+            }
+            self.session.addOutput(output)
+            guard output.availableMetadataObjectTypes.contains(.qr) else {
+                self.showFallbackLabel("QR scanning is unavailable.")
+                return
+            }
+            output.setMetadataObjectsDelegate(self, queue: .main)
+            output.metadataObjectTypes = [.qr]
+            self.isConfigured = true
+            self.startIfReady()
+        }
+    }
+
+    private func startIfReady() {
+        guard isConfigured, shouldRun, !session.isRunning else { return }
+        session.startRunning()
     }
 
     private func showFallbackLabel(_ text: String) {
-        let label = UILabel()
-        label.text = text
-        label.textColor = .white
-        label.textAlignment = .center
-        label.numberOfLines = 0
-        label.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(label)
-        NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
-            label.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
-            label.centerYAnchor.constraint(equalTo: view.centerYAnchor)
-        ])
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.view.subviews.compactMap({ $0 as? UILabel }).isEmpty else { return }
+            let label = UILabel()
+            label.text = text
+            label.textColor = .white
+            label.textAlignment = .center
+            label.numberOfLines = 0
+            label.translatesAutoresizingMaskIntoConstraints = false
+            self.view.addSubview(label)
+            NSLayoutConstraint.activate([
+                label.leadingAnchor.constraint(equalTo: self.view.leadingAnchor, constant: 24),
+                label.trailingAnchor.constraint(equalTo: self.view.trailingAnchor, constant: -24),
+                label.centerYAnchor.constraint(equalTo: self.view.centerYAnchor)
+            ])
+        }
     }
 
     func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {

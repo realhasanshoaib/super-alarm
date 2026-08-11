@@ -210,7 +210,10 @@ final class ObjectCameraViewController: UIViewController, AVCaptureVideoDataOutp
         guard !stopped, capturedAt - lastAnalyzedAt >= 0.1 else { return }
         lastAnalyzedAt = capturedAt
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-        let region = guideRegion
+        guard let region = Self.normalizedRegion(guideRegion) else {
+            emit(ObjectFrameSample(fingerprint: nil, candidate: nil, issue: .blurry, capturedAt: capturedAt))
+            return
+        }
         if let issue = frameIssue(pixelBuffer, region: region) {
             emit(ObjectFrameSample(fingerprint: nil, candidate: nil, issue: issue, capturedAt: capturedAt))
             return
@@ -293,11 +296,15 @@ final class ObjectCameraViewController: UIViewController, AVCaptureVideoDataOutp
         let width = CVPixelBufferGetWidthOfPlane(pixelBuffer, 0)
         let height = CVPixelBufferGetHeightOfPlane(pixelBuffer, 0)
         let bytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 0)
-        let left = Int(region.minX * Double(width))
-        let top = Int(region.minY * Double(height))
-        let right = Int(region.maxX * Double(width))
-        let bottom = Int(region.maxY * Double(height))
+        guard width > 0, height > 0, let region = Self.normalizedRegion(region) else {
+            return .blurry
+        }
+        let left = max(0, min(width - 1, Int(floor(region.minX * Double(width)))))
+        let top = max(0, min(height - 1, Int(floor(region.minY * Double(height)))))
+        let right = max(left + 1, min(width, Int(ceil(region.maxX * Double(width)))))
+        let bottom = max(top + 1, min(height, Int(ceil(region.maxY * Double(height)))))
         let side = min(right - left, bottom - top)
+        guard side > 0 else { return .blurry }
         let step = max(2, side / 64)
         let columnCount = (side + step - 1) / step
         var previousRow = Array(repeating: -1, count: columnCount)
@@ -334,5 +341,19 @@ final class ObjectCameraViewController: UIViewController, AVCaptureVideoDataOutp
         if averageLuminance > 220 { return .tooBright }
         if averageEdge < 2 { return .blurry }
         return nil
+    }
+
+    private static func normalizedRegion(_ region: CGRect) -> CGRect? {
+        guard
+            region.minX.isFinite,
+            region.minY.isFinite,
+            region.maxX.isFinite,
+            region.maxY.isFinite
+        else {
+            return nil
+        }
+        let unitRegion = CGRect(x: 0, y: 0, width: 1, height: 1)
+        let normalized = region.standardized.intersection(unitRegion)
+        return normalized.isNull || normalized.isEmpty ? nil : normalized
     }
 }

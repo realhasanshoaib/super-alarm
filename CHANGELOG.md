@@ -15,6 +15,7 @@
 
 ### iOS
 
+- Fixed crashes when onboarding or alarm dismissal opened the object and QR scanners, and made camera-session startup and shutdown safe across permission and presentation changes.
 - Rethemed the app around the logo's navy blue with an adaptive accent color, replacing the orange tint across the alarm editor, dial, weekday picker, onboarding, and scanners.
 - Adopted Liquid Glass on iOS 26 (glass dial, cards, and button styles) with material fallbacks on earlier releases.
 - Redesigned the ringing screen as a night sky in the logo's navy with a subtle star field and glass scan buttons.
