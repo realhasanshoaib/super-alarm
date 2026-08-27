@@ -16,7 +16,7 @@ The desired state is a privacy-safe, observable 1.5.0 release. PostHog Cloud US 
 - Add **Skip** to every onboarding step on Android and iOS. Skipping persists onboarding completion, opens the main alarm surface, and does not silently grant permissions or create dismissal targets.
 - Keep onboarding recoverable from the existing Health or Settings surface with a **Run setup again** action.
 - Refresh real store screenshots only when the live media does not show the shipped object-detection flow. Never create mock product states.
-- Ship the native apps as version 1.5.0. Use Android version code 13 and iOS build 12 unless a failed or cancelled store upload consumes either number before the final archive is produced.
+- Ship the native apps as version 1.5.0. Use Android version code 14 because the pre-release code 13 artifact exposed a Sentry startup-order fault during final device QA. Use iOS build 12 unless a failed or cancelled store upload consumes it before the final archive is produced.
 
 ## Done
 
