@@ -44,9 +44,9 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Switch
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -88,6 +88,12 @@ import com.superalarm.app.widget.hasSuperAlarmWidgets
 import com.superalarm.app.widget.needsHomeScreenPermissionHint
 import com.superalarm.app.widget.openHomeScreenPermissionSettings
 import com.superalarm.app.widget.requestPinSuperAlarmWidget
+import com.superalarm.app.telemetry.ProductEvent
+import com.superalarm.app.telemetry.SuperAlarmTelemetry
+import com.superalarm.app.telemetry.TelemetryEventName
+import com.superalarm.app.telemetry.TelemetryOutcome
+import com.superalarm.app.telemetry.TelemetrySource
+import com.superalarm.app.telemetry.TelemetrySurface
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -125,6 +131,7 @@ fun SuperAlarmApp(store: SuperAlarmStore) {
 private fun SuperAlarmRoot(store: SuperAlarmStore) {
   val context = LocalContext.current
   val state by store.state.collectAsStateWithLifecycle()
+  val analyticsEnabled by store.analyticsEnabled.collectAsStateWithLifecycle()
   var tab by remember { mutableStateOf(Tab.Alarm) }
   var enrollmentRequest by remember { mutableStateOf<EnrollmentRequest?>(null) }
   var pendingEnrollmentRequest by remember { mutableStateOf<EnrollmentRequest?>(null) }
@@ -132,6 +139,12 @@ private fun SuperAlarmRoot(store: SuperAlarmStore) {
   val snackbar = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
   val enrollmentPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+    SuperAlarmTelemetry.capture(ProductEvent(
+      TelemetryEventName.PermissionResultObserved,
+      source = TelemetrySource.App,
+      outcome = if (granted) TelemetryOutcome.Allowed else TelemetryOutcome.Denied,
+      permissionKind = "camera",
+    ))
     if (granted) {
       enrollmentRequest = pendingEnrollmentRequest
       cameraDenied = false
@@ -142,9 +155,15 @@ private fun SuperAlarmRoot(store: SuperAlarmStore) {
   }
 
   val requestObjectScan: (EnrollmentRequest) -> Unit = { request ->
+    SuperAlarmTelemetry.capture(ProductEvent(TelemetryEventName.DismissalEnrollmentStarted, surface = TelemetrySurface.ObjectEnrollment))
     if (store.cameraGranted()) {
       enrollmentRequest = request
     } else {
+      SuperAlarmTelemetry.capture(ProductEvent(
+        TelemetryEventName.PermissionActionSelected,
+        source = if (state.onboardingComplete) TelemetrySource.App else TelemetrySource.Onboarding,
+        permissionKind = "camera",
+      ))
       pendingEnrollmentRequest = request
       enrollmentPermission.launch(Manifest.permission.CAMERA)
     }
@@ -165,7 +184,10 @@ private fun SuperAlarmRoot(store: SuperAlarmStore) {
   enrollmentRequest?.let { request ->
     ObjectEnrollmentScreen(
       label = request.label,
-      onCancel = { enrollmentRequest = null },
+      onCancel = {
+        SuperAlarmTelemetry.capture(ProductEvent(TelemetryEventName.DismissalEnrollmentCancelled, surface = TelemetrySurface.ObjectEnrollment))
+        enrollmentRequest = null
+      },
       onComplete = { embeddings, thumbnailJpeg ->
         if (request.targetId == null) {
           store.addObjectTarget(request.label, embeddings, thumbnailJpeg)
@@ -240,8 +262,17 @@ private fun SuperAlarmRoot(store: SuperAlarmStore) {
           requestObjectScan(EnrollmentRequest(target.label, target.id))
         },
       )
-      Tab.Health -> HealthScreen(Modifier.padding(padding), state, store)
+      Tab.Health -> HealthScreen(Modifier.padding(padding), state, analyticsEnabled, store)
     }
+  }
+
+  LaunchedEffect(tab) {
+    val surface = when (tab) {
+      Tab.Alarm -> TelemetrySurface.Alarm
+      Tab.Dismissal -> TelemetrySurface.DismissalTargets
+      Tab.Health -> TelemetrySurface.Health
+    }
+    SuperAlarmTelemetry.capture(ProductEvent(TelemetryEventName.SurfaceViewed, surface = surface))
   }
 }
 
@@ -461,7 +492,7 @@ private fun DayPicker(selected: List<Int>, onDay: (Int) -> Unit) {
 }
 
 @Composable
-private fun HealthScreen(modifier: Modifier, state: AppState, store: SuperAlarmStore) {
+private fun HealthScreen(modifier: Modifier, state: AppState, analyticsEnabled: Boolean, store: SuperAlarmStore) {
   var refreshKey by remember { mutableStateOf(0) }
   var notificationDenied by remember { mutableStateOf(false) }
   val caps = remember(refreshKey) { store.capabilities() }
@@ -469,10 +500,17 @@ private fun HealthScreen(modifier: Modifier, state: AppState, store: SuperAlarmS
   val deviceSupport = remember { deviceSupportForManufacturer(Build.MANUFACTURER) }
   val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
     notificationDenied = !granted
+    SuperAlarmTelemetry.capture(ProductEvent(
+      TelemetryEventName.PermissionResultObserved,
+      source = TelemetrySource.App,
+      outcome = if (granted) TelemetryOutcome.Allowed else TelemetryOutcome.Denied,
+      permissionKind = "notifications",
+    ))
     refreshKey++
   }
   LazyColumn(modifier = modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)) {
     item { HealthRow("Notifications", caps.notificationsGranted, "Required for foreground alarm alerts") {
+      SuperAlarmTelemetry.capture(ProductEvent(TelemetryEventName.PermissionActionSelected, source = TelemetrySource.App, permissionKind = "notifications"))
       if (store.notificationPermissionGranted() || notificationDenied || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
         store.openNotificationSettings()
       } else {
@@ -484,7 +522,18 @@ private fun HealthScreen(modifier: Modifier, state: AppState, store: SuperAlarmS
     item { HealthRow("Battery optimization", caps.batteryOptimizationRelaxed, "Relax this if alarms are delayed", store::openBatterySettings) }
     item { DeviceSupportHealthRow(deviceSupport = deviceSupport, onAction = store::openDeviceSupportSettings) }
     item { Button(onClick = store::startRoutineTest, modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(52.dp)) { Text("Run routine test") } }
-    item { OutlinedButton(onClick = { shareText(context, store.diagnosticsJson()) }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(52.dp)) { Text("Export diagnostics") } }
+    item { OutlinedButton(onClick = {
+      SuperAlarmTelemetry.capture(ProductEvent(TelemetryEventName.DiagnosticsExported, surface = TelemetrySurface.Health))
+      shareText(context, store.diagnosticsJson())
+    }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(52.dp)) { Text("Export diagnostics") } }
+    item {
+      ListItem(
+        headlineContent = { Text("Share anonymous analytics") },
+        supportingContent = { Text("Shares product use, device details, and coarse IP-derived location. Alarm labels and scan data stay private.") },
+        trailingContent = { Switch(checked = analyticsEnabled, onCheckedChange = store::setAnalyticsEnabled) },
+      )
+    }
+    item { OutlinedButton(onClick = store::restartOnboarding, modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(52.dp)) { Text("Run setup again") } }
     item {
       ListItem(
         headlineContent = { Text("App version") },

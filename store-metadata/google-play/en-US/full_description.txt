@@ -1,0 +1,28 @@
+You don't need a louder alarm. You need one you can't dismiss from under the covers.
+
+Super Alarm only stops when you get out of bed and scan a real object in your home — your fridge, your mirror, your coffee machine — or a QR spot placed across the room. By the time you've dismissed it, you're already up.
+
+Made for heavy sleepers and chronic snoozers
+- Enroll any household object with a guided scan. No printer, no stickers.
+- Or create a QR spot for the bathroom or kitchen.
+- Walking across the room breaks the half-asleep snooze loop for good.
+
+An alarm clock that actually rings
+- Exact scheduled alarms that fire on time.
+- Full-screen ringing even while your phone is locked.
+- Backup re-rings if a ring is missed, and alarms restored after reboot.
+- A real wake-up test during setup, so you know it works before tomorrow morning.
+
+Set up with confidence in minutes
+- Guided setup for your dismissal target, alarm time, and repeat days.
+- Alarm-critical phone settings checked in context, before they can silence you.
+- Home-screen widget with your next alarm and 5h, 6h, and 8h sleep shortcuts.
+
+Private by design
+- Object recognition and QR scanning run on your phone.
+- No account, no ads, no cloud sync. Alarm and scan features work offline.
+- Camera frames, QR payloads, and object fingerprints are never sent to analytics or diagnostics providers.
+- Optional anonymous product analytics can be turned off in the app. Essential crash diagnostics help us find alarm reliability failures.
+- Local diagnostics export stays under your control.
+
+Wake up on time. Get out of bed. Start the morning on your feet.

@@ -75,6 +75,12 @@ import com.superalarm.app.data.SuperAlarmStore
 import com.superalarm.app.data.deviceSupportForManufacturer
 import com.superalarm.app.data.onboardingTestPassed
 import com.superalarm.app.features.qr.qrBitmap
+import com.superalarm.app.telemetry.ProductEvent
+import com.superalarm.app.telemetry.SuperAlarmTelemetry
+import com.superalarm.app.telemetry.TelemetryEventName
+import com.superalarm.app.telemetry.TelemetryOutcome
+import com.superalarm.app.telemetry.TelemetrySource
+import com.superalarm.app.telemetry.TelemetrySurface
 import kotlinx.coroutines.delay
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -91,10 +97,17 @@ fun OnboardingScreen(
   var refreshKey by remember { mutableStateOf(0) }
   var notificationDenied by remember { mutableStateOf(false) }
   var onboardingQr by remember { mutableStateOf<QrLocation?>(null) }
+  var showSkipConfirmation by remember { mutableStateOf(false) }
   val capabilities = remember(refreshKey, step) { store.capabilities() }
   val deviceSupport = remember { deviceSupportForManufacturer(Build.MANUFACTURER) }
   val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
     notificationDenied = !granted
+    SuperAlarmTelemetry.capture(ProductEvent(
+      TelemetryEventName.PermissionResultObserved,
+      source = TelemetrySource.Onboarding,
+      outcome = if (granted) TelemetryOutcome.Allowed else TelemetryOutcome.Denied,
+      permissionKind = "notifications",
+    ))
     refreshKey++
   }
   val lifecycleOwner = LocalLifecycleOwner.current
@@ -105,6 +118,18 @@ fun OnboardingScreen(
     }
     lifecycleOwner.lifecycle.addObserver(observer)
     onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+  }
+
+  LaunchedEffect(step) {
+    SuperAlarmTelemetry.capture(ProductEvent(
+      name = TelemetryEventName.OnboardingStepViewed,
+      surface = onboardingSurface(step),
+      onboardingStep = step,
+    ))
+  }
+
+  LaunchedEffect(Unit) {
+    SuperAlarmTelemetry.capture(ProductEvent(TelemetryEventName.OnboardingStarted, source = TelemetrySource.Onboarding))
   }
 
   BackHandler(enabled = step > OnboardingSteps.Welcome) {
@@ -123,6 +148,12 @@ fun OnboardingScreen(
           }
         },
         actions = {
+          TextButton(onClick = {
+            SuperAlarmTelemetry.capture(ProductEvent(TelemetryEventName.OnboardingSkipOpened, onboardingStep = step))
+            showSkipConfirmation = true
+          }) {
+            Text("Skip")
+          }
           Text("${step + 1} of ${OnboardingSteps.Last + 1}", style = MaterialTheme.typography.labelLarge)
           Spacer(Modifier.padding(end = 8.dp))
         },
@@ -160,6 +191,11 @@ fun OnboardingScreen(
           notificationPermissionGranted = store.notificationPermissionGranted(),
           notificationDenied = notificationDenied,
           onNotifications = {
+            SuperAlarmTelemetry.capture(ProductEvent(
+              TelemetryEventName.PermissionActionSelected,
+              source = TelemetrySource.Onboarding,
+              permissionKind = "notifications",
+            ))
             if (store.notificationPermissionGranted() || notificationDenied || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
               store.openNotificationSettings()
             } else {
@@ -196,12 +232,32 @@ fun OnboardingScreen(
       onDismiss = { onboardingQr = null },
     )
   }
+
+  if (showSkipConfirmation) {
+    AlertDialog(
+      onDismissRequest = {
+        SuperAlarmTelemetry.capture(ProductEvent(TelemetryEventName.OnboardingSkipCancelled, onboardingStep = step))
+        showSkipConfirmation = false
+      },
+      title = { Text("Skip setup?") },
+      text = { Text("You can use Super Alarm now, but you still need a dismissal target and alarm permissions before relying on it. Run setup again from Health at any time.") },
+      confirmButton = {
+        TextButton(onClick = store::skipOnboarding) { Text("Skip setup") }
+      },
+      dismissButton = {
+        TextButton(onClick = {
+          SuperAlarmTelemetry.capture(ProductEvent(TelemetryEventName.OnboardingSkipCancelled, onboardingStep = step))
+          showSkipConfirmation = false
+        }) { Text("Continue setup") }
+      },
+    )
+  }
 }
 
 @Composable
 private fun WelcomeStep(onContinue: () -> Unit) {
   OnboardingPage {
-    Spacer(Modifier.weight(1f))
+    Spacer(Modifier.height(16.dp))
     Icon(
       Icons.Default.Alarm,
       contentDescription = null,
@@ -223,7 +279,7 @@ private fun WelcomeStep(onContinue: () -> Unit) {
     Spacer(Modifier.height(20.dp))
     FeatureRow(Icons.Default.Security, "Private by design", "Object scans stay on this phone.")
     FeatureRow(Icons.Default.CheckCircle, "Tested before bedtime", "You’ll complete a real lock-screen test.")
-    Spacer(Modifier.weight(1f))
+    Spacer(Modifier.height(16.dp))
     Button(onClick = onContinue, modifier = Modifier.fillMaxWidth().height(52.dp)) {
       Text("Set up my alarm")
     }
@@ -361,7 +417,7 @@ private fun AlarmStep(
         )
       }
     }
-    Spacer(Modifier.weight(1f))
+    Spacer(Modifier.height(16.dp))
     Button(
       onClick = onContinue,
       enabled = state.alarm.repeatDays.isNotEmpty(),
@@ -444,7 +500,7 @@ private fun PhoneSetupStep(
       onAction = onBattery,
     )
     DeviceSupportRow(deviceSupport = deviceSupport, onAction = onDeviceSupport)
-    Spacer(Modifier.weight(1f))
+    Spacer(Modifier.height(16.dp))
     Button(
       onClick = onRunTest,
       enabled = requiredReady,
@@ -529,7 +585,7 @@ private fun WakeUpTestStep(
         )
       }
     }
-    Spacer(Modifier.weight(1f))
+    Spacer(Modifier.height(16.dp))
     if (passed) {
       Button(onClick = onContinue, modifier = Modifier.fillMaxWidth().height(52.dp)) {
         Text("Finish setup")
@@ -580,7 +636,7 @@ private fun ReadyStep(
         trailingContent = { Text("Ready", color = MaterialTheme.colorScheme.primary) },
       )
     }
-    Spacer(Modifier.weight(1f))
+    Spacer(Modifier.height(16.dp))
     Button(onClick = onFinish, modifier = Modifier.fillMaxWidth().height(52.dp)) {
       Text("Go to alarm")
     }
@@ -596,12 +652,21 @@ private fun OnboardingPage(content: @Composable ColumnScope.() -> Unit) {
   ) {
     item {
       Column(
-        modifier = Modifier.fillParentMaxHeight(),
+        modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         content = content,
       )
     }
   }
+}
+
+private fun onboardingSurface(step: Int): TelemetrySurface = when (step) {
+  OnboardingSteps.Welcome -> TelemetrySurface.OnboardingWelcome
+  OnboardingSteps.DismissalMethod -> TelemetrySurface.OnboardingDismissalMethod
+  OnboardingSteps.Alarm -> TelemetrySurface.OnboardingAlarm
+  OnboardingSteps.PhoneSetup -> TelemetrySurface.OnboardingPhoneSetup
+  OnboardingSteps.WakeUpTest -> TelemetrySurface.OnboardingWakeUpTest
+  else -> TelemetrySurface.OnboardingReady
 }
 
 @Composable

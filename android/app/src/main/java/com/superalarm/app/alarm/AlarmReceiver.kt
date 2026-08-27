@@ -4,6 +4,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.superalarm.app.widget.SuperAlarmWidgetUpdater
+import com.superalarm.app.telemetry.ProductEvent
+import com.superalarm.app.telemetry.SuperAlarmTelemetry
+import com.superalarm.app.telemetry.TelemetryEventName
+import com.superalarm.app.telemetry.TelemetrySource
 import java.time.Instant
 
 class AlarmReceiver : BroadcastReceiver() {
@@ -15,6 +19,11 @@ class AlarmReceiver : BroadcastReceiver() {
     val triggerAtMillis = intent.getLongExtra(AlarmConstants.EXTRA_TRIGGER_AT_MILLIS, System.currentTimeMillis())
     val attemptId = "attempt-${triggerAtMillis}"
     val triggeredAt = Instant.now().toString()
+    SuperAlarmTelemetry.capture(ProductEvent(
+      name = if (backupStage > 0) TelemetryEventName.BackupRingFired else TelemetryEventName.AlarmFired,
+      source = TelemetrySource.System,
+      count = backupStage,
+    ))
 
     if (backupStage == 0 && kind == "live") {
       AlarmScheduler.scheduleNextAfterTrigger(context, config, triggerAtMillis)

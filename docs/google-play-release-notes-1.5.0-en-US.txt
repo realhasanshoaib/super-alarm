@@ -1,0 +1,6 @@
+Wake up with more confidence.
+
+• Fixed onboarding on smaller screens so every setup step can scroll.
+• Added a Skip option and a way to run setup again later.
+• Improved object-scan and QR-dismissal reliability diagnostics.
+• Added a clear analytics preference in the app.

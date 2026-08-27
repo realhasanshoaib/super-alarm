@@ -11,12 +11,19 @@ final class AppStore: ObservableObject {
     @Published var isRingingPresented = false
     @Published var dismissedAttempt: AlarmAttempt?
     @Published var alertMessage: String?
+    @Published var analyticsEnabled: Bool
 
     private let storage = JsonStateStore()
     private let notifications = AlarmNotificationService()
     private let audio = AlarmAudioService()
     private let haptics = HapticsService()
+    private let telemetry: TelemetryClient
     private var didStart = false
+
+    init(telemetry: TelemetryClient = LiveTelemetryClient.shared) {
+        self.telemetry = telemetry
+        analyticsEnabled = telemetry.analyticsEnabled
+    }
 
     var allowedLocations: [QrLocation] {
         state.qrLocations.filter { state.alarm.allowedLocationIds.contains($0.id) }
@@ -47,7 +54,13 @@ final class AppStore: ObservableObject {
     func start() {
         guard !didStart else { return }
         didStart = true
-        state = storage.load()
+        do {
+            state = try storage.load()
+        } catch {
+            state = SuperAlarmState()
+            telemetry.captureFailure(.stateLoading, error: error)
+        }
+        telemetry.capture(ProductEvent(.appOpened, source: .app))
         recoverInterruptedRuntimeIfNeeded()
         Task { await refreshHealth(); await rescheduleIfNeeded() }
     }
@@ -61,6 +74,7 @@ final class AppStore: ObservableObject {
         let components = Calendar.current.dateComponents([.hour, .minute], from: date)
         state.alarm.timeMinutes = (components.hour ?? 7) * 60 + (components.minute ?? 30)
         persistAndReschedule()
+        telemetry.capture(ProductEvent(.alarmTimeChanged, source: .app))
     }
 
     func setEnabled(_ enabled: Bool) {
@@ -73,6 +87,7 @@ final class AppStore: ObservableObject {
         log(.info, enabled ? "Alarm enabled" : "Alarm disabled")
         haptics.selection()
         persistAndReschedule()
+        telemetry.capture(ProductEvent(enabled ? .alarmEnabled : .alarmDisabled, source: .app))
     }
 
     func toggleRepeatDay(_ index: Int) {
@@ -83,6 +98,7 @@ final class AppStore: ObservableObject {
             log(.warning, "Alarm disabled because no repeat days are selected")
         }
         persistAndReschedule()
+        telemetry.capture(ProductEvent(.alarmRepeatChanged, source: .app, count: state.alarm.repeatDays.filter { $0 }.count))
     }
 
     func setLabel(_ label: String) {
@@ -96,21 +112,53 @@ final class AppStore: ObservableObject {
     }
 
     func setOnboardingStep(_ step: OnboardingStep) {
+        let previousStep = state.onboardingStep
         state.onboardingStep = step
         save()
+        if step.rawValue > previousStep.rawValue {
+            telemetry.capture(ProductEvent(.onboardingStepCompleted, onboardingStep: previousStep.rawValue, source: .onboarding))
+        }
     }
 
     func completeOnboarding() {
+        let completedStep = state.onboardingStep
         state.hasCompletedOnboarding = true
         state.onboardingStep = .ready
         state.alarm.isEnabled = true
         persistAndReschedule()
+        telemetry.capture(ProductEvent(.onboardingStepCompleted, onboardingStep: completedStep.rawValue, source: .onboarding))
+        telemetry.capture(ProductEvent(.onboardingCompleted, source: .onboarding))
+    }
+
+    func skipOnboarding() {
+        let skippedAtStep = state.onboardingStep.rawValue
+        state.hasCompletedOnboarding = true
+        save()
+        telemetry.capture(ProductEvent(.onboardingSkipped, onboardingStep: skippedAtStep, source: .onboarding))
+    }
+
+    func restartOnboarding() {
+        state.hasCompletedOnboarding = false
+        state.onboardingStep = .welcome
+        save()
+        telemetry.capture(ProductEvent(.onboardingRestarted, source: .app))
+    }
+
+    func setAnalyticsEnabled(_ enabled: Bool) {
+        analyticsEnabled = enabled
+        telemetry.setAnalyticsEnabled(enabled)
+    }
+
+    func track(_ event: ProductEvent) {
+        telemetry.capture(event)
     }
 
     @discardableResult
     func addQrSpot(label: String) -> QrLocation? {
         let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
+        let previousStep = state.onboardingStep
+        let source: TelemetrySource = state.hasCompletedOnboarding ? .app : .onboarding
         let id = UUID()
         let spot = QrLocation(
             id: id,
@@ -126,6 +174,10 @@ final class AppStore: ObservableObject {
         log(.info, "Created QR spot: \(trimmed)")
         haptics.success()
         persistAndReschedule()
+        if source == .onboarding, state.onboardingStep.rawValue > previousStep.rawValue {
+            telemetry.capture(ProductEvent(.onboardingStepCompleted, onboardingStep: previousStep.rawValue, source: source))
+        }
+        telemetry.capture(ProductEvent(.dismissalEnrollmentCompleted, targetType: .qr, source: source))
         return spot
     }
 
@@ -137,6 +189,7 @@ final class AppStore: ObservableObject {
             log(.warning, "Alarm disabled because the last dismissal target was deleted")
         }
         persistAndReschedule()
+        telemetry.capture(ProductEvent(.dismissalTargetDeleted, targetType: .qr, source: .app))
     }
 
     func setSpotAllowed(_ spot: QrLocation, allowed: Bool) {
@@ -152,11 +205,14 @@ final class AppStore: ObservableObject {
             }
         }
         persistAndReschedule()
+        telemetry.capture(ProductEvent(.dismissalTargetAvailabilityChanged, targetType: .qr, source: .app, enabled: allowed))
     }
 
     func addObjectTarget(label: String, fingerprints: [String]) {
         let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !fingerprints.isEmpty else { return }
+        let previousStep = state.onboardingStep
+        let source: TelemetrySource = state.hasCompletedOnboarding ? .app : .onboarding
         let id = UUID()
         let target = ObjectTarget(
             id: id,
@@ -174,6 +230,10 @@ final class AppStore: ObservableObject {
         log(.info, "Enrolled object: \(trimmed)")
         haptics.success()
         persistAndReschedule()
+        if source == .onboarding, state.onboardingStep.rawValue > previousStep.rawValue {
+            telemetry.capture(ProductEvent(.onboardingStepCompleted, onboardingStep: previousStep.rawValue, source: source))
+        }
+        telemetry.capture(ProductEvent(.dismissalEnrollmentCompleted, targetType: .object, source: source, count: fingerprints.count))
     }
 
     func deleteObjectTarget(_ target: ObjectTarget) {
@@ -184,6 +244,7 @@ final class AppStore: ObservableObject {
             log(.warning, "Alarm disabled because the last dismissal target was deleted")
         }
         persistAndReschedule()
+        telemetry.capture(ProductEvent(.dismissalTargetDeleted, targetType: .object, source: .app))
     }
 
     func setObjectAllowed(_ target: ObjectTarget, allowed: Bool) {
@@ -199,23 +260,29 @@ final class AppStore: ObservableObject {
             }
         }
         persistAndReschedule()
+        telemetry.capture(ProductEvent(.dismissalTargetAvailabilityChanged, targetType: .object, source: .app, enabled: allowed))
     }
 
     func requestNotifications() {
+        telemetry.capture(ProductEvent(.permissionActionSelected, source: state.hasCompletedOnboarding ? .app : .onboarding, permissionKind: "notifications"))
         Task {
             do {
                 try await notifications.requestAuthorization(includeCritical: health.hasCriticalEntitlement)
                 await refreshHealth()
+                let allowed = [.authorized, .provisional, .ephemeral].contains(health.authorizationStatus)
+                telemetry.capture(ProductEvent(.permissionResultObserved, source: state.hasCompletedOnboarding ? .app : .onboarding, outcome: allowed ? .allowed : .denied, permissionKind: "notifications"))
                 await rescheduleIfNeeded()
             } catch {
                 log(.error, "Notification authorization failed: \(error.localizedDescription)")
                 alertMessage = "Notification authorization failed. Check iOS Settings and try again."
+                telemetry.captureFailure(.notificationAuthorization, error: error)
             }
         }
     }
 
     func openAppSettings() {
         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        telemetry.capture(ProductEvent(.deviceSettingsOpened, source: state.hasCompletedOnboarding ? .app : .onboarding, permissionKind: "notifications"))
         UIApplication.shared.open(url)
     }
 
@@ -232,24 +299,31 @@ final class AppStore: ObservableObject {
             await refreshHealth()
             guard [.authorized, .provisional, .ephemeral].contains(health.authorizationStatus) else {
                 alertMessage = "Allow notifications before running the wake-up test."
+                telemetry.capture(ProductEvent(.wakeUpTestFailed, source: .onboarding, outcome: .blocked, failureCode: "notification_blocked"))
                 return
             }
             guard health.soundSetting == .enabled else {
                 alertMessage = "Turn on Sounds for Super Alarm in iOS Settings before running the wake-up test."
+                telemetry.capture(ProductEvent(.wakeUpTestFailed, source: .onboarding, outcome: .blocked, failureCode: "sound_blocked"))
                 return
             }
             do {
                 let triggerAt = try await notifications.scheduleOnboardingTest(after: 10, health: health)
                 await MainActor.run {
+                    let completedStep = self.state.onboardingStep
                     self.state.alarm.isEnabled = false
                     self.state.onboardingStep = .wakeUpTest
                     self.state.onboardingTestScheduledAt = triggerAt
                     self.save()
+                    self.telemetry.capture(ProductEvent(.onboardingStepCompleted, onboardingStep: completedStep.rawValue, source: .onboarding))
+                    self.telemetry.capture(ProductEvent(.wakeUpTestScheduled, source: .onboarding))
                 }
             } catch {
                 await MainActor.run {
                     self.log(.error, "Wake-up test scheduling failed: \(error.localizedDescription)")
                     self.alertMessage = "The wake-up test could not be scheduled. Check notification settings and try again."
+                    self.telemetry.capture(ProductEvent(.wakeUpTestFailed, source: .onboarding, outcome: .failed, failureCode: "schedule_failed"))
+                    self.telemetry.captureFailure(.alarmScheduling, error: error)
                 }
             }
         }
@@ -272,6 +346,7 @@ final class AppStore: ObservableObject {
             log(.info, "Opened alarm from notification: \(notificationIdentifier)")
         }
         save()
+        telemetry.capture(ProductEvent(kind == .test ? .wakeUpTestStarted : .ringingStarted, surface: .ringing, source: notificationIdentifier == nil ? .app : .notification))
         isRingingPresented = true
         audio.start(vibrates: state.alarm.vibrates)
     }
@@ -280,11 +355,13 @@ final class AppStore: ObservableObject {
         guard let spot = spot(for: payload) else {
             log(.warning, "Rejected unknown QR payload")
             haptics.error()
+            telemetry.capture(ProductEvent(.dismissalAttempted, targetType: .qr, source: .app, outcome: .failed, failureCode: "unknown"))
             return .invalid("This QR code is not enrolled in Super Alarm.")
         }
         guard state.alarm.allowedLocationIds.contains(spot.id) else {
             log(.warning, "Rejected disallowed QR spot: \(spot.label)")
             haptics.warning()
+            telemetry.capture(ProductEvent(.dismissalAttempted, targetType: .qr, source: .app, outcome: .blocked, failureCode: "disallowed"))
             return .invalid("\(spot.label) is enrolled but not allowed for this alarm.")
         }
         completeDismissal(targetId: spot.id, targetLabel: spot.label, method: "qr")
@@ -295,6 +372,7 @@ final class AppStore: ObservableObject {
         guard state.alarm.allowedObjectTargetIds.contains(target.id) else {
             log(.warning, "Rejected disallowed object: \(target.label)")
             haptics.warning()
+            telemetry.capture(ProductEvent(.dismissalAttempted, targetType: .object, source: .app, outcome: .blocked, failureCode: "disallowed"))
             return
         }
         completeDismissal(targetId: target.id, targetLabel: target.label, method: "object")
@@ -302,8 +380,9 @@ final class AppStore: ObservableObject {
 
     private func completeDismissal(targetId: UUID, targetLabel: String, method: String) {
         guard let runtime = state.runtime else { return }
+        let dismissedAt = Date()
         if let index = state.attempts.firstIndex(where: { $0.id == runtime.attemptId }) {
-            state.attempts[index].dismissedAt = Date()
+            state.attempts[index].dismissedAt = dismissedAt
             state.attempts[index].result = .dismissed
             state.attempts[index].dismissalLocationId = targetId
             state.attempts[index].dismissalMethod = method
@@ -319,6 +398,13 @@ final class AppStore: ObservableObject {
         haptics.success()
         audio.stop()
         save()
+        telemetry.capture(ProductEvent(
+            runtime.kind == .test ? .wakeUpTestPassed : .alarmDismissed,
+            targetType: method == "object" ? .object : .qr,
+            source: .app,
+            outcome: .success,
+            durationSeconds: Int(dismissedAt.timeIntervalSince(runtime.ringingStartedAt))
+        ))
     }
 
     func closeRinging() {
@@ -330,6 +416,7 @@ final class AppStore: ObservableObject {
     }
 
     func diagnosticsExportData() -> Data {
+        telemetry.capture(ProductEvent(.diagnosticsExported, surface: .settings, source: .app))
         let export = DiagnosticsExport(
             exportedAt: Date(),
             bundleIdentifier: Bundle.main.bundleIdentifier ?? "com.superalarm.app",
@@ -340,7 +427,12 @@ final class AppStore: ObservableObject {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
-        return (try? encoder.encode(export)) ?? Data("{}".utf8)
+        do {
+            return try encoder.encode(export)
+        } catch {
+            telemetry.captureFailure(.diagnosticsExport, error: error)
+            return Data("{}".utf8)
+        }
     }
 
     private func spot(for payload: String) -> QrLocation? {
@@ -359,6 +451,7 @@ final class AppStore: ObservableObject {
         state.runtime = nil
         log(.warning, "Recovered interrupted ringing state after launch")
         save()
+        telemetry.capture(ProductEvent(.ringingStoppedUnexpectedly, source: .system))
     }
 
     private func persistAndReschedule() {
@@ -376,6 +469,8 @@ final class AppStore: ObservableObject {
         } catch {
             log(.error, "Alarm scheduling failed: \(error.localizedDescription)")
             alertMessage = "Alarm scheduling failed. Check notification permission and try again."
+            telemetry.capture(ProductEvent(.alarmScheduleFailed, source: .system, outcome: .failed, failureCode: "notification_schedule_failed"))
+            telemetry.captureFailure(.alarmScheduling, error: error)
         }
     }
 
@@ -385,7 +480,11 @@ final class AppStore: ObservableObject {
     }
 
     private func save() {
-        storage.save(state)
+        do {
+            try storage.save(state)
+        } catch {
+            telemetry.captureFailure(.stateSaving, error: error)
+        }
     }
 }
 

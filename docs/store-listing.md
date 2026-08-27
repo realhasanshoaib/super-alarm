@@ -29,8 +29,9 @@ Set up with confidence in minutes
 
 Private by design
 - Object recognition runs entirely on your phone.
-- No account, no ads, no tracking, no cloud sync. Works offline.
+- No account, no ads, no cloud sync. Alarm and scan features work offline.
 - Camera frames are processed on device for QR scanning and object recognition. One representative object thumbnail stays in private app storage; every other frame is discarded.
+- Optional anonymous product analytics can be turned off in the app. Essential crash diagnostics never include camera frames, QR payloads, or object fingerprints.
 - Local diagnostics export when you want to verify reliability yourself.
 
 Wake up on time. Get out of bed. Start the morning on your feet.
@@ -61,7 +62,8 @@ Built to be trusted:
 
 Private by design:
 - Object recognition runs entirely on your phone — no account or network connection required.
-- No ads, no tracking, no cloud sync.
+- No ads or cloud sync. Alarm and scan features work offline.
+- Optional anonymous product analytics can be turned off in Settings. Essential crash diagnostics never include camera frames, QR payloads, or object fingerprints.
 
 Wake up on time. Get out of bed. Start the morning on your feet.
 

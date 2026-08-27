@@ -1,6 +1,7 @@
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "org.jetbrains.kotlin.plugin.compose"
+apply plugin: "io.sentry.android.gradle"
 
 def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: false).toBoolean()
 
@@ -14,8 +15,8 @@ android {
         applicationId 'com.superalarm.app'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 12
-        versionName "1.4.1"
+        versionCode 13
+        versionName "1.5.0"
     }
     signingConfigs {
         release {
@@ -79,7 +80,16 @@ dependencies {
     implementation 'com.google.mediapipe:tasks-vision:1.0.0'
     implementation 'com.google.mlkit:barcode-scanning:17.3.0'
     implementation 'com.google.zxing:core:3.5.4'
+    implementation 'com.posthog:posthog-android:3.60.7'
+    implementation 'io.sentry:sentry-android:8.54.0'
 
     debugImplementation 'androidx.compose.ui:ui-tooling'
     testImplementation 'junit:junit:4.13.2'
+}
+
+sentry {
+    org = "q9labs"
+    projectName = "super-alarm-android"
+    authToken = System.getenv("SENTRY_AUTH_TOKEN")
+    autoUploadProguardMapping = System.getenv("SENTRY_AUTH_TOKEN") != null
 }

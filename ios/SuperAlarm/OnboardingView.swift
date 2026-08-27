@@ -4,6 +4,7 @@ import UserNotifications
 struct OnboardingView: View {
     @EnvironmentObject private var store: AppStore
     @State private var sheet: OnboardingSheet?
+    @State private var showSkipConfirmation = false
 
     var body: some View {
         NavigationStack {
@@ -26,7 +27,11 @@ struct OnboardingView: View {
                         }
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button("Skip") {
+                        store.track(ProductEvent(.onboardingSkipOpened, onboardingStep: store.state.onboardingStep.rawValue, source: .onboarding))
+                        showSkipConfirmation = true
+                    }
                     Text("\(store.state.onboardingStep.rawValue + 1) of \(OnboardingStep.ready.rawValue + 1)")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
@@ -34,6 +39,29 @@ struct OnboardingView: View {
             }
         }
         .interactiveDismissDisabled()
+        .confirmationDialog(
+            "Skip setup?",
+            isPresented: $showSkipConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Skip Setup", role: .destructive) { store.skipOnboarding() }
+            Button("Continue Setup", role: .cancel) {
+                store.track(ProductEvent(.onboardingSkipCancelled, onboardingStep: store.state.onboardingStep.rawValue, source: .onboarding))
+            }
+        } message: {
+            Text("You can use Super Alarm now, but you still need a dismissal target and alarm permissions before relying on it. Run setup again from Settings at any time.")
+        }
+        .task(id: store.state.onboardingStep) {
+            store.track(ProductEvent(
+                .onboardingStepViewed,
+                surface: telemetrySurface,
+                onboardingStep: store.state.onboardingStep.rawValue,
+                source: .onboarding
+            ))
+        }
+        .onAppear {
+            store.track(ProductEvent(.onboardingStarted, source: .onboarding))
+        }
         .sheet(item: $sheet) { route in
             switch route {
             case .object:
@@ -79,6 +107,17 @@ struct OnboardingView: View {
         case .phoneSetup: return .alarm
         case .wakeUpTest: return .phoneSetup
         case .ready: return .wakeUpTest
+        }
+    }
+
+    private var telemetrySurface: TelemetrySurface {
+        switch store.state.onboardingStep {
+        case .welcome: return .onboardingWelcome
+        case .dismissalMethod: return .onboardingDismissalMethod
+        case .alarm: return .onboardingAlarm
+        case .phoneSetup: return .onboardingPhoneSetup
+        case .wakeUpTest: return .onboardingWakeUpTest
+        case .ready: return .onboardingReady
         }
     }
 }
@@ -165,6 +204,7 @@ private struct OnboardingQrSetupView: View {
     @EnvironmentObject private var store: AppStore
     @State private var label = ""
     @State private var createdSpot: QrLocation?
+    @State private var didTrackStart = false
 
     var body: some View {
         NavigationStack {
@@ -198,7 +238,12 @@ private struct OnboardingQrSetupView: View {
             .navigationTitle(createdSpot == nil ? "Create QR Spot" : "Save Your QR Spot")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(createdSpot == nil ? "Cancel" : "Done") { dismiss() }
+                    Button(createdSpot == nil ? "Cancel" : "Done") {
+                        if createdSpot == nil {
+                            store.track(ProductEvent(.dismissalEnrollmentCancelled, targetType: .qr, source: .onboarding, outcome: .cancelled))
+                        }
+                        dismiss()
+                    }
                 }
                 if createdSpot == nil {
                     ToolbarItem(placement: .confirmationAction) {
@@ -209,6 +254,11 @@ private struct OnboardingQrSetupView: View {
                     }
                 }
             }
+        }
+        .onAppear {
+            guard !didTrackStart else { return }
+            didTrackStart = true
+            store.track(ProductEvent(.dismissalEnrollmentStarted, targetType: .qr, source: .onboarding))
         }
     }
 }
@@ -437,11 +487,16 @@ private struct OnboardingPage<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: alignment, spacing: 20) {
-            content
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(alignment: alignment, spacing: 20) {
+                    content
+                }
+                .padding(28)
+                .frame(maxWidth: .infinity, minHeight: geometry.size.height, alignment: .top)
+            }
+            .scrollDismissesKeyboard(.interactively)
         }
-        .padding(28)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

@@ -173,6 +173,7 @@ struct AlarmEditorView: View {
             }
         }
         .navigationTitle("Super Alarm")
+        .onAppear { store.track(ProductEvent(.surfaceViewed, surface: .alarm, source: .app)) }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -277,6 +278,7 @@ struct AddQrSpotView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: AppStore
     @State private var label = ""
+    @State private var didTrackStart = false
 
     var body: some View {
         NavigationStack {
@@ -291,7 +293,10 @@ struct AddQrSpotView: View {
             .navigationTitle("Add QR Spot")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        store.track(ProductEvent(.dismissalEnrollmentCancelled, targetType: .qr, source: .app, outcome: .cancelled))
+                        dismiss()
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
@@ -301,6 +306,11 @@ struct AddQrSpotView: View {
                     .disabled(label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
+        }
+        .onAppear {
+            guard !didTrackStart else { return }
+            didTrackStart = true
+            store.track(ProductEvent(.dismissalEnrollmentStarted, targetType: .qr, source: .app))
         }
     }
 }
@@ -378,6 +388,13 @@ struct SettingsHealthView: View {
             }
 
             Section("Preferences") {
+                Toggle("Share anonymous analytics", isOn: Binding(
+                    get: { store.analyticsEnabled },
+                    set: store.setAnalyticsEnabled
+                ))
+                Text("Shares product use, device details, and coarse IP-derived location. Alarm labels and scan data stay private.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 HealthRow(
                     systemImage: "bell.fill",
                     title: "Notifications",
@@ -421,6 +438,15 @@ struct SettingsHealthView: View {
                             .foregroundStyle(.primary)
                     }
                 }
+                Button {
+                    store.restartOnboarding()
+                } label: {
+                    HStack(spacing: 12) {
+                        SettingsIconTile(systemImage: "arrow.counterclockwise", tint: .brandOrange)
+                        Text("Run Setup Again")
+                            .foregroundStyle(.primary)
+                    }
+                }
             }
 
             Section("Recent Attempts") {
@@ -444,6 +470,7 @@ struct SettingsHealthView: View {
             }
         }
         .navigationTitle("Settings")
+        .onAppear { store.track(ProductEvent(.surfaceViewed, surface: .settings, source: .app)) }
         .refreshable { await store.refreshHealth() }
         .task { await store.refreshHealth() }
     }

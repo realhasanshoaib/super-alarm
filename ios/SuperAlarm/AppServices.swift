@@ -5,27 +5,28 @@ import UIKit
 import UserNotifications
 
 struct JsonStateStore {
-    private var url: URL {
+    private func stateURL() throws -> URL {
         let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("SuperAlarm", isDirectory: true)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory.appendingPathComponent("state-v1.json")
     }
 
-    func load() -> SuperAlarmState {
-        guard let data = try? Data(contentsOf: url) else { return SuperAlarmState() }
+    func load() throws -> SuperAlarmState {
+        let url = try stateURL()
+        guard FileManager.default.fileExists(atPath: url.path) else { return SuperAlarmState() }
+        let data = try Data(contentsOf: url)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return (try? decoder.decode(SuperAlarmState.self, from: data)) ?? SuperAlarmState()
+        return try decoder.decode(SuperAlarmState.self, from: data)
     }
 
-    func save(_ state: SuperAlarmState) {
+    func save(_ state: SuperAlarmState) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
-        if let data = try? encoder.encode(state) {
-            try? data.write(to: url, options: [.atomic])
-        }
+        let data = try encoder.encode(state)
+        try data.write(to: stateURL(), options: [.atomic])
     }
 }
 

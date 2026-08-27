@@ -16,6 +16,9 @@
 		A10000000000000000000007 /* ObjectCamera.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000017 /* ObjectCamera.swift */; };
 		A10000000000000000000008 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000018 /* OnboardingView.swift */; };
 		A10000000000000000000009 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000019 /* Theme.swift */; };
+		B20000000000000000000001 /* Telemetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000011 /* Telemetry.swift */; };
+		B20000000000000000000021 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = B20000000000000000000041 /* PostHog */; };
+		B20000000000000000000022 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = B20000000000000000000042 /* Sentry */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
 		C3FEDC56E238AAC3B02CBE97 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 4A24CEA6B75F1281DF5DA8DC /* PrivacyInfo.xcprivacy */; };
@@ -32,6 +35,7 @@
 		A10000000000000000000017 /* ObjectCamera.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ObjectCamera.swift; path = SuperAlarm/ObjectCamera.swift; sourceTree = "<group>"; };
 		A10000000000000000000018 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OnboardingView.swift; path = SuperAlarm/OnboardingView.swift; sourceTree = "<group>"; };
 		A10000000000000000000019 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Theme.swift; path = SuperAlarm/Theme.swift; sourceTree = "<group>"; };
+		B20000000000000000000011 /* Telemetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Telemetry.swift; path = SuperAlarm/Telemetry.swift; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* SuperAlarm.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SuperAlarm.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = SuperAlarm/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = SuperAlarm/Info.plist; sourceTree = "<group>"; };
@@ -45,6 +49,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B20000000000000000000021 /* PostHog in Frameworks */,
+				B20000000000000000000022 /* Sentry in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -64,6 +70,7 @@
 				A10000000000000000000017 /* ObjectCamera.swift */,
 				A10000000000000000000018 /* OnboardingView.swift */,
 				A10000000000000000000019 /* Theme.swift */,
+				B20000000000000000000011 /* Telemetry.swift */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
@@ -115,6 +122,10 @@
 			dependencies = (
 			);
 			name = SuperAlarm;
+			packageProductDependencies = (
+				B20000000000000000000041 /* PostHog */,
+				B20000000000000000000042 /* Sentry */,
+			);
 			productName = SuperAlarm;
 			productReference = 13B07F961A680F5B00A75B9A /* SuperAlarm.app */;
 			productType = "com.apple.product-type.application";
@@ -142,6 +153,10 @@
 			);
 			mainGroup = 83CBB9F61A601CBA00E9B192;
 			productRefGroup = 83CBBA001A601CBA00E9B192 /* Products */;
+			packageReferences = (
+				B20000000000000000000031 /* XCRemoteSwiftPackageReference "posthog-ios" */,
+				B20000000000000000000032 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
+			);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -181,6 +196,7 @@
 				A10000000000000000000007 /* ObjectCamera.swift in Sources */,
 				A10000000000000000000008 /* OnboardingView.swift in Sources */,
 				A10000000000000000000009 /* Theme.swift in Sources */,
+				B20000000000000000000001 /* Telemetry.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -194,7 +210,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = SuperAlarm/SuperAlarm.entitlements;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 12;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = SuperAlarm/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -202,7 +218,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.4.0;
+				MARKETING_VERSION = 1.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.superalarm.app;
 				PRODUCT_NAME = SuperAlarm;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -219,14 +235,14 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = SuperAlarm/SuperAlarm.entitlements;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 12;
 				INFOPLIST_FILE = SuperAlarm/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.4.0;
+				MARKETING_VERSION = 1.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.superalarm.app;
 				PRODUCT_NAME = SuperAlarm;
 				SWIFT_VERSION = 5.0;
@@ -369,6 +385,38 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		B20000000000000000000031 /* XCRemoteSwiftPackageReference "posthog-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/PostHog/posthog-ios.git";
+			requirement = {
+				kind = exactVersion;
+				version = 3.69.12;
+			};
+		};
+		B20000000000000000000032 /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/getsentry/sentry-cocoa.git";
+			requirement = {
+				kind = exactVersion;
+				version = 9.26.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B20000000000000000000041 /* PostHog */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B20000000000000000000031 /* XCRemoteSwiftPackageReference "posthog-ios" */;
+			productName = PostHog;
+		};
+		B20000000000000000000042 /* Sentry */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B20000000000000000000032 /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
+			productName = Sentry;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 83CBB9F71A601CBA00E9B192 /* Project object */;
 }

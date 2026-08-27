@@ -12,6 +12,10 @@ import androidx.activity.enableEdgeToEdge
 import com.superalarm.app.alarm.AlarmConstants
 import com.superalarm.app.alarm.AlarmRingingService
 import com.superalarm.app.data.SuperAlarmStore
+import com.superalarm.app.telemetry.ProductEvent
+import com.superalarm.app.telemetry.SuperAlarmTelemetry
+import com.superalarm.app.telemetry.TelemetryEventName
+import com.superalarm.app.telemetry.TelemetrySource
 import com.superalarm.app.ui.SuperAlarmApp
 
 class MainActivity : ComponentActivity() {
@@ -20,6 +24,7 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     setTheme(R.style.AppTheme)
     super.onCreate(savedInstanceState)
+    SuperAlarmTelemetry.capture(ProductEvent(TelemetryEventName.AppOpened, source = TelemetrySource.App))
     enableEdgeToEdge()
     store = (application as MainApplication).store
     applyAlarmWindowFlags(intent)

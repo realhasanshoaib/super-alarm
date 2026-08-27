@@ -21,6 +21,10 @@ import android.os.Vibrator
 import androidx.core.app.NotificationCompat
 import com.superalarm.app.MainActivity
 import com.superalarm.app.R
+import com.superalarm.app.telemetry.ProductEvent
+import com.superalarm.app.telemetry.SuperAlarmTelemetry
+import com.superalarm.app.telemetry.TelemetryEventName
+import com.superalarm.app.telemetry.TelemetrySource
 
 class AlarmRingingService : Service() {
   private var mediaPlayer: MediaPlayer? = null
@@ -71,6 +75,11 @@ class AlarmRingingService : Service() {
       startVibration()
     }
     startVolumeLock()
+    SuperAlarmTelemetry.capture(ProductEvent(
+      TelemetryEventName.RingingStarted,
+      source = if (kind == "test") TelemetrySource.Onboarding else TelemetrySource.System,
+      count = backupStage,
+    ))
 
     return START_STICKY
   }

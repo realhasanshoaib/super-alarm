@@ -1,0 +1,6 @@
+Wake up with more confidence.
+
+• Setup now scrolls correctly on every supported screen size.
+• You can skip setup and run it again later from Settings.
+• Improved object-scan and QR-dismissal reliability diagnostics.
+• Added a clear analytics preference in Settings.

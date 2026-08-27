@@ -20,12 +20,21 @@ import com.superalarm.app.alarm.AlarmScheduler
 import com.superalarm.app.alarm.AlarmStorage
 import com.superalarm.app.alarm.PendingAlarmLaunch
 import com.superalarm.app.alarm.StoredAlarmConfig
+import com.superalarm.app.telemetry.DismissalTargetType
+import com.superalarm.app.telemetry.ProductEvent
+import com.superalarm.app.telemetry.SuperAlarmTelemetry
+import com.superalarm.app.telemetry.Telemetry
+import com.superalarm.app.telemetry.TelemetryEventName
+import com.superalarm.app.telemetry.TelemetryFailureOperation
+import com.superalarm.app.telemetry.TelemetryOutcome
+import com.superalarm.app.telemetry.TelemetrySource
 import com.superalarm.app.widget.SuperAlarmWidgetUpdater
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONObject
 import java.io.File
+import java.time.Duration
 import java.time.Instant
 import java.time.ZonedDateTime
 import java.util.UUID
@@ -33,10 +42,12 @@ import java.util.UUID
 class SuperAlarmStore(
   private val context: Context,
   private val recoverInterruptedRuntime: Boolean = true,
+  private val telemetry: Telemetry = SuperAlarmTelemetry,
 ) {
   private val prefs = context.getSharedPreferences("super_alarm_native_state", Context.MODE_PRIVATE)
   private val _state = MutableStateFlow(loadState())
   val state: StateFlow<AppState> = _state.asStateFlow()
+  val analyticsEnabled: StateFlow<Boolean> = telemetry.analyticsEnabled
 
   init {
     if (recoverInterruptedRuntime) recoverColdRuntime()
@@ -57,23 +68,55 @@ class SuperAlarmStore(
     }
   }
 
-  fun completeOnboarding() = update {
-    it.copy(
-      alarm = it.alarm.copy(enabled = true).normalized(),
-      onboardingComplete = true,
-      onboardingStep = OnboardingSteps.Ready,
-    )
+  fun completeOnboarding() {
+    val completedStep = _state.value.onboardingStep
+    update {
+      it.copy(
+        alarm = it.alarm.copy(enabled = true).normalized(),
+        onboardingComplete = true,
+        onboardingStep = OnboardingSteps.Ready,
+      )
+    }
+    telemetry.capture(ProductEvent(TelemetryEventName.OnboardingStepCompleted, onboardingStep = completedStep, source = TelemetrySource.Onboarding))
+    telemetry.capture(ProductEvent(TelemetryEventName.OnboardingCompleted, source = TelemetrySource.Onboarding))
   }
 
-  fun setOnboardingStep(step: Int) = update {
-    it.copy(onboardingStep = step.coerceIn(OnboardingSteps.Welcome, OnboardingSteps.Last))
+  fun skipOnboarding() {
+    val skippedAtStep = _state.value.onboardingStep
+    update { it.copy(onboardingComplete = true) }
+    telemetry.capture(ProductEvent(TelemetryEventName.OnboardingSkipped, onboardingStep = skippedAtStep, source = TelemetrySource.Onboarding))
   }
 
-  fun setTime(minutes: Int) = mutateAlarm { it.copy(timeMinutesLocal = minutes.coerceIn(0, 1439)) }
+  fun restartOnboarding() {
+    update { it.copy(onboardingComplete = false, onboardingStep = OnboardingSteps.Welcome) }
+    telemetry.capture(ProductEvent(TelemetryEventName.OnboardingRestarted, source = TelemetrySource.App))
+  }
+
+  fun setAnalyticsEnabled(enabled: Boolean) = telemetry.setAnalyticsEnabled(enabled)
+
+  fun setOnboardingStep(step: Int) {
+    val previousStep = _state.value.onboardingStep
+    val nextStep = step.coerceIn(OnboardingSteps.Welcome, OnboardingSteps.Last)
+    update { it.copy(onboardingStep = nextStep) }
+    if (nextStep > previousStep) {
+      telemetry.capture(ProductEvent(
+        TelemetryEventName.OnboardingStepCompleted,
+        onboardingStep = previousStep,
+        source = TelemetrySource.Onboarding,
+      ))
+    }
+  }
+
+  fun setTime(minutes: Int) {
+    mutateAlarm { it.copy(timeMinutesLocal = minutes.coerceIn(0, 1439)) }
+    telemetry.capture(ProductEvent(TelemetryEventName.AlarmTimeChanged, source = TelemetrySource.App))
+  }
 
   fun toggleDay(day: Int) = mutateAlarm { alarm ->
     val next = if (alarm.repeatDays.contains(day)) alarm.repeatDays - day else (alarm.repeatDays + day).sorted()
     alarm.copy(repeatDays = next)
+  }.also {
+    telemetry.capture(ProductEvent(TelemetryEventName.AlarmRepeatChanged, count = _state.value.alarm.repeatDays.size, source = TelemetrySource.App))
   }
 
   fun setVibration(enabled: Boolean) = mutateAlarm { it.copy(vibrationEnabled = enabled) }
@@ -84,6 +127,7 @@ class SuperAlarmStore(
       return false
     }
     mutateAlarm { it.copy(enabled = enabled) }
+    telemetry.capture(ProductEvent(if (enabled) TelemetryEventName.AlarmEnabled else TelemetryEventName.AlarmDisabled, source = TelemetrySource.App))
     return true
   }
 
@@ -106,10 +150,13 @@ class SuperAlarmStore(
     AlarmStorage.saveAlarmConfig(context, stored)
     AlarmScheduler.scheduleOneShot(context, stored, trigger.toInstant().toEpochMilli())
     SuperAlarmWidgetUpdater.requestUpdate(context)
+    telemetry.capture(ProductEvent(TelemetryEventName.AlarmScheduled, source = TelemetrySource.App))
     return true
   }
 
   fun addLocation(label: String): QrLocation {
+    val previousStep = _state.value.onboardingStep
+    val source = if (_state.value.onboardingComplete) TelemetrySource.App else TelemetrySource.Onboarding
     val location = QrLocation(label = label.ifBlank { "Wake spot" })
     update { state ->
       state.copy(
@@ -122,6 +169,10 @@ class SuperAlarmStore(
         },
       )
     }
+    if (source == TelemetrySource.Onboarding && _state.value.onboardingStep > previousStep) {
+      telemetry.capture(ProductEvent(TelemetryEventName.OnboardingStepCompleted, onboardingStep = previousStep, source = source))
+    }
+    telemetry.capture(ProductEvent(TelemetryEventName.DismissalEnrollmentCompleted, targetType = DismissalTargetType.Qr, source = source))
     return location
   }
 
@@ -134,6 +185,7 @@ class SuperAlarmStore(
         alarm = alarm.copy(enabled = alarm.enabled && alarm.hasDismissalTarget()),
       )
     }
+    telemetry.capture(ProductEvent(TelemetryEventName.DismissalTargetDeleted, targetType = DismissalTargetType.Qr, source = TelemetrySource.App))
   }
 
   fun toggleAllowed(locationId: String) {
@@ -143,6 +195,12 @@ class SuperAlarmStore(
       val alarm = state.alarm.copy(allowedLocationIds = next)
       state.copy(alarm = alarm.copy(enabled = alarm.enabled && alarm.hasDismissalTarget()))
     }
+    telemetry.capture(ProductEvent(
+      TelemetryEventName.DismissalTargetAvailabilityChanged,
+      targetType = DismissalTargetType.Qr,
+      source = TelemetrySource.App,
+      enabled = _state.value.alarm.allowedLocationIds.contains(locationId),
+    ))
   }
 
   fun addObjectTarget(
@@ -151,6 +209,8 @@ class SuperAlarmStore(
     thumbnailJpeg: ByteArray?,
   ): ObjectTarget {
     require(embeddings.isNotEmpty())
+    val previousStep = _state.value.onboardingStep
+    val source = if (_state.value.onboardingComplete) TelemetrySource.App else TelemetrySource.Onboarding
     val id = UUID.randomUUID().toString()
     val target = ObjectTarget(
       id = id,
@@ -172,6 +232,10 @@ class SuperAlarmStore(
       )
     }
     addEvent("object_enrolled", "Enrolled object: ${target.label}")
+    if (source == TelemetrySource.Onboarding && _state.value.onboardingStep > previousStep) {
+      telemetry.capture(ProductEvent(TelemetryEventName.OnboardingStepCompleted, onboardingStep = previousStep, source = source))
+    }
+    telemetry.capture(ProductEvent(TelemetryEventName.DismissalEnrollmentCompleted, targetType = DismissalTargetType.Object, count = embeddings.size, source = source))
     return target
   }
 
@@ -198,6 +262,7 @@ class SuperAlarmStore(
       current.thumbnailFileName?.let(::deleteObjectThumbnail)
     }
     addEvent("object_rescanned", "Updated object scan: ${current.label}")
+    telemetry.capture(ProductEvent(TelemetryEventName.DismissalEnrollmentCompleted, targetType = DismissalTargetType.Object, count = embeddings.size, source = TelemetrySource.App))
   }
 
   fun deleteObjectTarget(targetId: String) {
@@ -213,6 +278,7 @@ class SuperAlarmStore(
       )
     }
     thumbnailFileName?.let(::deleteObjectThumbnail)
+    telemetry.capture(ProductEvent(TelemetryEventName.DismissalTargetDeleted, targetType = DismissalTargetType.Object, source = TelemetrySource.App))
   }
 
   fun toggleObjectAllowed(targetId: String) {
@@ -222,6 +288,12 @@ class SuperAlarmStore(
       val alarm = state.alarm.copy(allowedObjectTargetIds = next)
       state.copy(alarm = alarm.copy(enabled = alarm.enabled && alarm.hasDismissalTarget()))
     }
+    telemetry.capture(ProductEvent(
+      TelemetryEventName.DismissalTargetAvailabilityChanged,
+      targetType = DismissalTargetType.Object,
+      source = TelemetrySource.App,
+      enabled = _state.value.alarm.allowedObjectTargetIds.contains(targetId),
+    ))
   }
 
   fun startRoutineTest() {
@@ -235,6 +307,7 @@ class SuperAlarmStore(
     )
     AlarmStorage.savePendingLaunch(context, launch)
     startRuntime(launch)
+    telemetry.capture(ProductEvent(TelemetryEventName.WakeUpTestStarted, source = TelemetrySource.App))
     ContextCompat.startForegroundService(
       context,
       Intent(context, AlarmRingingService::class.java).apply {
@@ -251,11 +324,15 @@ class SuperAlarmStore(
 
   fun scheduleOnboardingTest(delayMillis: Long = 10_000L): Boolean {
     val current = _state.value
-    if (!current.alarm.hasDismissalTarget()) return false
+    if (!current.alarm.hasDismissalTarget()) {
+      telemetry.capture(ProductEvent(TelemetryEventName.WakeUpTestFailed, source = TelemetrySource.Onboarding, outcome = TelemetryOutcome.Blocked, failureCode = "missing_target"))
+      return false
+    }
 
     val caps = capabilities()
     if (!caps.notificationsGranted || !caps.exactAlarmAllowed || !caps.fullscreenIntentAllowed) {
       addEvent("onboarding_test_blocked", "Prepare notification, exact alarm, and lock-screen access first.")
+      telemetry.capture(ProductEvent(TelemetryEventName.WakeUpTestFailed, source = TelemetrySource.Onboarding, outcome = TelemetryOutcome.Blocked, failureCode = "permission_blocked"))
       return false
     }
 
@@ -265,7 +342,10 @@ class SuperAlarmStore(
       config = alarm.toStoredConfig(),
       delayMillis = delayMillis,
       previousTriggerAtMillis = current.onboardingTestScheduledAtMillis,
-    ) ?: return false
+    ) ?: run {
+      telemetry.capture(ProductEvent(TelemetryEventName.WakeUpTestFailed, source = TelemetrySource.Onboarding, outcome = TelemetryOutcome.Failed, failureCode = "schedule_failed"))
+      return false
+    }
     update {
       it.copy(
         alarm = alarm,
@@ -274,6 +354,8 @@ class SuperAlarmStore(
       )
     }
     addEvent("onboarding_test_scheduled", "Wake-up test scheduled through the Android alarm system.")
+    telemetry.capture(ProductEvent(TelemetryEventName.OnboardingStepCompleted, onboardingStep = current.onboardingStep, source = TelemetrySource.Onboarding))
+    telemetry.capture(ProductEvent(TelemetryEventName.WakeUpTestScheduled, source = TelemetrySource.Onboarding))
     return true
   }
 
@@ -283,6 +365,7 @@ class SuperAlarmStore(
     val validation = validateDismissalPayload(payload, state)
     val location = validation.location
     if (!validation.accepted || location == null) {
+      telemetry.capture(ProductEvent(TelemetryEventName.DismissalAttempted, targetType = DismissalTargetType.Qr, outcome = TelemetryOutcome.Failed, source = TelemetrySource.App))
       if (validation.reason == "disallowed" && location != null) {
         addEvent("disallowed_qr", "${location.label} is enrolled but not allowed for dismissal.")
       } else {
@@ -300,6 +383,7 @@ class SuperAlarmStore(
     val runtime = state.runtime ?: return false
     val target = state.objectTargets.firstOrNull { it.id == targetId }
     if (target == null || !state.alarm.allowedObjectTargetIds.contains(targetId)) {
+      telemetry.capture(ProductEvent(TelemetryEventName.DismissalAttempted, targetType = DismissalTargetType.Object, outcome = TelemetryOutcome.Failed, source = TelemetrySource.App))
       addEvent("invalid_object", "Object is not enrolled or allowed for dismissal.")
       return false
     }
@@ -350,9 +434,13 @@ class SuperAlarmStore(
       ?.let(::objectThumbnailFile)
       ?.takeIf(File::isFile)
 
-  fun openExactAlarmSettings() = openSettings(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
+  fun openExactAlarmSettings() {
+    captureSettingsOpened("exact_alarm")
+    openSettings(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
+  }
 
   fun openNotificationSettings() {
+    captureSettingsOpened("notifications")
     val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
         putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
@@ -367,6 +455,7 @@ class SuperAlarmStore(
   }
 
   fun openDeviceSupportSettings() {
+    captureSettingsOpened("device_support")
     val support = deviceSupportForManufacturer(Build.MANUFACTURER)
     support?.settingsComponents?.forEach { component ->
       if (tryOpenSettings(Intent().setComponent(ComponentName(component.packageName, component.className)))) {
@@ -377,12 +466,16 @@ class SuperAlarmStore(
   }
 
   fun openFullscreenSettings() {
+    captureSettingsOpened("full_screen_alarm")
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
       openSettings(Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT).apply { data = Uri.parse("package:${context.packageName}") })
     }
   }
 
-  fun openBatterySettings() = openSettings(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+  fun openBatterySettings() {
+    captureSettingsOpened("battery_optimization")
+    openSettings(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+  }
 
   fun diagnosticsJson(): String = JSONObject().apply {
     put("appState", _state.value.toJson())
@@ -416,6 +509,11 @@ class SuperAlarmStore(
         ) + state.attempts,
       )
     }
+    telemetry.capture(ProductEvent(
+      name = TelemetryEventName.DismissalStarted,
+      source = if (launch.kind == "test") TelemetrySource.Onboarding else TelemetrySource.System,
+      count = launch.backupStage,
+    ))
   }
 
   private fun completeDismissal(
@@ -424,7 +522,11 @@ class SuperAlarmStore(
     targetLabel: String,
     method: String,
   ) {
-    val dismissedAt = Instant.now().toString()
+    val dismissedAtInstant = Instant.now()
+    val dismissedAt = dismissedAtInstant.toString()
+    val durationSeconds = runCatching {
+      Duration.between(Instant.parse(runtime.triggeredAt), dismissedAtInstant).seconds.toInt()
+    }.getOrNull()
     AlarmScheduler.cancelActiveBackups(context, AlarmStorage.readAlarmConfig(context))
     AlarmStorage.clearPendingLaunch(context)
     context.stopService(Intent(context, AlarmRingingService::class.java))
@@ -447,6 +549,13 @@ class SuperAlarmStore(
         },
       )
     }
+    telemetry.capture(ProductEvent(
+      name = if (runtime.kind == "test") TelemetryEventName.WakeUpTestPassed else TelemetryEventName.AlarmDismissed,
+      targetType = if (method == "object") DismissalTargetType.Object else DismissalTargetType.Qr,
+      outcome = TelemetryOutcome.Success,
+      source = TelemetrySource.App,
+      durationSeconds = durationSeconds,
+    ))
   }
 
   private fun mutateAlarm(transform: (AlarmConfig) -> AlarmConfig) {
@@ -480,6 +589,7 @@ class SuperAlarmStore(
         diagnosticEvents = listOf(AlarmDiagnosticEvent(type = "runtime_recovered", message = "Previous ringing state was interrupted on launch.")) + state.diagnosticEvents,
       )
     }
+    telemetry.capture(ProductEvent(TelemetryEventName.RingingStoppedUnexpectedly, source = TelemetrySource.System))
   }
 
   private fun syncScheduler(alarm: AlarmConfig) {
@@ -494,7 +604,10 @@ class SuperAlarmStore(
 
   private fun loadState(): AppState {
     val raw = prefs.getString(KEY_STATE, null) ?: return AppState()
-    return runCatching { appStateFromJson(JSONObject(raw)) }.getOrElse { AppState() }
+    return runCatching { appStateFromJson(JSONObject(raw)) }.getOrElse { error ->
+      telemetry.captureFailure(TelemetryFailureOperation.StateLoading, error)
+      AppState()
+    }
   }
 
   private fun saveState(state: AppState) {
@@ -509,7 +622,10 @@ class SuperAlarmStore(
     return runCatching {
       File(directory, fileName).writeBytes(bytes)
       fileName
-    }.getOrNull()
+    }.getOrElse { error ->
+      telemetry.captureFailure(TelemetryFailureOperation.ObjectThumbnailSaving, error)
+      null
+    }
   }
 
   private fun objectThumbnailFile(fileName: String): File? {
@@ -526,12 +642,22 @@ class SuperAlarmStore(
     context.startActivity(intent)
   }
 
+  private fun captureSettingsOpened(permissionKind: String) {
+    telemetry.capture(ProductEvent(
+      TelemetryEventName.DeviceSettingsOpened,
+      source = TelemetrySource.App,
+      permissionKind = permissionKind,
+    ))
+  }
+
   private fun tryOpenSettings(intent: Intent): Boolean = try {
     openSettings(intent)
     true
-  } catch (_: ActivityNotFoundException) {
+  } catch (error: ActivityNotFoundException) {
+    telemetry.captureFailure(TelemetryFailureOperation.SettingsOpening, error)
     false
-  } catch (_: SecurityException) {
+  } catch (error: SecurityException) {
+    telemetry.captureFailure(TelemetryFailureOperation.SettingsOpening, error)
     false
   }
 

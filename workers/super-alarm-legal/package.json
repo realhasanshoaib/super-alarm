@@ -1,0 +1,15 @@
+{
+  "name": "super-alarm-legal",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "wrangler deploy --dry-run --outdir /tmp/super-alarm-worker-dry-run",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@sentry/cloudflare": "10.71.0"
+  },
+  "devDependencies": {
+    "wrangler": "4.127.0"
+  }
+}

@@ -53,6 +53,12 @@ import com.superalarm.app.MainApplication
 import com.superalarm.app.MainActivity
 import com.superalarm.app.R
 import com.superalarm.app.alarm.AlarmStorage
+import com.superalarm.app.telemetry.ProductEvent
+import com.superalarm.app.telemetry.SuperAlarmTelemetry
+import com.superalarm.app.telemetry.TelemetryEventName
+import com.superalarm.app.telemetry.TelemetryFailureOperation
+import com.superalarm.app.telemetry.TelemetryOutcome
+import com.superalarm.app.telemetry.TelemetrySource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -148,6 +154,7 @@ object SuperAlarmWidgetUpdater {
     val applicationContext = context.applicationContext
     scope.launch {
       runCatching { SuperAlarmWidget().updateAll(applicationContext) }
+        .onFailure { SuperAlarmTelemetry.captureFailure(TelemetryFailureOperation.WidgetUpdate, it) }
     }
   }
 }
@@ -159,15 +166,33 @@ class SetSleepDurationAction : ActionCallback {
     parameters: ActionParameters,
   ) {
     val durationHours = parameters[DurationHoursKey]?.coerceIn(1, 24) ?: return
+    SuperAlarmTelemetry.capture(ProductEvent(
+      TelemetryEventName.WidgetActionSelected,
+      source = TelemetrySource.Widget,
+      count = durationHours,
+    ))
     val store = (context.applicationContext as MainApplication).store
     val enabled = store.setSleepDuration(durationHours * 60)
     SuperAlarmWidget().updateAll(context)
 
     if (!enabled) {
+      SuperAlarmTelemetry.capture(ProductEvent(
+        TelemetryEventName.WidgetActionFailed,
+        source = TelemetrySource.Widget,
+        outcome = TelemetryOutcome.Blocked,
+        failureCode = "missing_dismissal_target",
+      ))
       context.startActivity(
         Intent(context, MainActivity::class.java)
           .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
       )
+    } else {
+      SuperAlarmTelemetry.capture(ProductEvent(
+        TelemetryEventName.WidgetActionCompleted,
+        source = TelemetrySource.Widget,
+        outcome = TelemetryOutcome.Success,
+        count = durationHours,
+      ))
     }
   }
 }

@@ -3,6 +3,7 @@ import UIKit
 
 struct AddObjectView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var store: AppStore
     @State private var label = "Fridge"
     @State private var isScanning = false
 
@@ -25,7 +26,15 @@ struct AddObjectView: View {
                         Button("Cancel") { dismiss() }
                     }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Start Scan") { isScanning = true }
+                        Button("Start Scan") {
+                            store.track(ProductEvent(
+                                .dismissalEnrollmentStarted,
+                                surface: .objectEnrollment,
+                                targetType: .object,
+                                source: store.state.hasCompletedOnboarding ? .app : .onboarding
+                            ))
+                            isScanning = true
+                        }
                             .disabled(label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }
@@ -44,6 +53,7 @@ struct ObjectEnrollmentView: View {
     @State private var issue: ObjectFrameIssue?
     @State private var error: String?
     @State private var isComplete = false
+    @State private var didTrackFailure = false
 
     private let instructions = [
         "Center the object inside the ring",
@@ -61,11 +71,11 @@ struct ObjectEnrollmentView: View {
             ObjectCameraView(
                 mode: .enrollment,
                 onFrame: handleFrame,
-                onError: { error = $0 }
+                onError: handleError
             )
             .ignoresSafeArea()
             ObjectScanGuide(progress: progress, active: issue == nil && error == nil)
-            ObjectScanTopBar(title: "Scan \(label)", onClose: { dismiss() })
+            ObjectScanTopBar(title: "Scan \(label)", onClose: cancelEnrollment)
             ObjectScanPanel(
                 title: fingerprints.isEmpty ? "Look at \(label)" : "Keep moving slowly",
                 message: error ?? issue?.rawValue ?? instructions[min(fingerprints.count, instructions.count - 1)],
@@ -98,6 +108,31 @@ struct ObjectEnrollmentView: View {
         isComplete = true
         let selected = ObjectFeaturePrintCodec.selectDiverse(fingerprints, count: 5)
         store.addObjectTarget(label: label, fingerprints: selected)
+        dismiss()
+    }
+
+    private func handleError(_ message: String) {
+        error = message
+        guard !didTrackFailure else { return }
+        didTrackFailure = true
+        store.track(ProductEvent(
+            .dismissalEnrollmentFailed,
+            surface: .objectEnrollment,
+            targetType: .object,
+            source: store.state.hasCompletedOnboarding ? .app : .onboarding,
+            outcome: .failed,
+            failureCode: "camera_error"
+        ))
+    }
+
+    private func cancelEnrollment() {
+        store.track(ProductEvent(
+            .dismissalEnrollmentCancelled,
+            surface: .objectEnrollment,
+            targetType: .object,
+            source: store.state.hasCompletedOnboarding ? .app : .onboarding,
+            outcome: .cancelled
+        ))
         dismiss()
     }
 }
