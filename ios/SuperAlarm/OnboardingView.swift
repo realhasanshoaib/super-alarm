@@ -13,7 +13,11 @@ struct OnboardingView: View {
                     value: Double(store.state.onboardingStep.rawValue + 1),
                     total: Double(OnboardingStep.ready.rawValue + 1)
                 )
-                stepContent
+                ScrollView {
+                    stepContent
+                }
+                .id(store.state.onboardingStep)
+                .scrollDismissesKeyboard(.interactively)
             }
             .navigationTitle("Super Alarm")
             .navigationBarTitleDisplayMode(.inline)
@@ -487,16 +491,12 @@ private struct OnboardingPage<Content: View>: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            ScrollView {
-                VStack(alignment: alignment, spacing: 20) {
-                    content
-                }
-                .padding(28)
-                .frame(maxWidth: .infinity, minHeight: geometry.size.height, alignment: .top)
-            }
-            .scrollDismissesKeyboard(.interactively)
+        VStack(alignment: alignment, spacing: 20) {
+            content
         }
+        .padding(28)
+        .frame(maxWidth: .infinity, alignment: .top)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -567,6 +567,7 @@ private struct OnboardingPermissionRow: View {
                 Text(detail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
             if ready {
@@ -579,6 +580,7 @@ private struct OnboardingPermissionRow: View {
             }
         }
         .padding()
+        .fixedSize(horizontal: false, vertical: true)
         .brandGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
