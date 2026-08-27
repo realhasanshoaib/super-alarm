@@ -24,6 +24,7 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     setTheme(R.style.AppTheme)
     super.onCreate(savedInstanceState)
+    (application as MainApplication).initializeTelemetryIfUnlocked()
     SuperAlarmTelemetry.capture(ProductEvent(TelemetryEventName.AppOpened, source = TelemetrySource.App))
     enableEdgeToEdge()
     store = (application as MainApplication).store

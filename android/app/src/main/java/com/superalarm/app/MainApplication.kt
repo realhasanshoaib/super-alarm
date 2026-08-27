@@ -1,6 +1,7 @@
 package com.superalarm.app
 
 import android.app.Application
+import android.os.UserManager
 import com.superalarm.app.alarm.AlarmRingingService
 import com.superalarm.app.alarm.AlarmStorage
 import com.superalarm.app.data.SuperAlarmStore
@@ -11,8 +12,14 @@ class MainApplication : Application() {
 
   override fun onCreate() {
     super.onCreate()
-    SuperAlarmTelemetry.initialize(this)
     AlarmStorage.migrateToDeviceProtectedStorage(this)
     AlarmRingingService.ensureNotificationChannel(this)
+    initializeTelemetryIfUnlocked()
+  }
+
+  fun initializeTelemetryIfUnlocked() {
+    if (getSystemService(UserManager::class.java).isUserUnlocked) {
+      SuperAlarmTelemetry.initialize(this)
+    }
   }
 }
