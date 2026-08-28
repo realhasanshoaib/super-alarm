@@ -144,14 +144,21 @@ object SuperAlarmTelemetry : Telemetry {
       options.isEnableUserInteractionBreadcrumbs = false
       options.tracesSampleRate = if (BuildConfig.DEBUG) 1.0 else 0.2
       options.beforeSend = SentryOptions.BeforeSendCallback { event, _ ->
-        event.request?.apply {
-          data = null
-          cookies = null
-          headers = null
-          queryString = null
-          fragment = null
+        val isTelemetryTransportFailure =
+          event.throwable is SentryHttpClientException ||
+            event.exceptions?.any { it.type == SentryHttpClientException::class.java.simpleName } == true
+        if (isTelemetryTransportFailure) {
+          null
+        } else {
+          event.request?.apply {
+            data = null
+            cookies = null
+            headers = null
+            queryString = null
+            fragment = null
+          }
+          event
         }
-        event
       }
     }
 
