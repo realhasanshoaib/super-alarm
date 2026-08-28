@@ -653,11 +653,9 @@ class SuperAlarmStore(
   private fun tryOpenSettings(intent: Intent): Boolean = try {
     openSettings(intent)
     true
-  } catch (error: ActivityNotFoundException) {
-    telemetry.captureFailure(TelemetryFailureOperation.SettingsOpening, error)
+  } catch (_: ActivityNotFoundException) {
     false
-  } catch (error: SecurityException) {
-    telemetry.captureFailure(TelemetryFailureOperation.SettingsOpening, error)
+  } catch (_: SecurityException) {
     false
   }
 
