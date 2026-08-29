@@ -25,12 +25,17 @@ android {
             if (signingPropsFile.exists()) {
                 signingProps.load(new FileInputStream(signingPropsFile))
             }
-            storeFile signingProps.getProperty("SUPER_ALARM_UPLOAD_STORE_FILE")
-                ? rootProject.file(signingProps.getProperty("SUPER_ALARM_UPLOAD_STORE_FILE"))
+            def uploadStoreFile = System.getenv("SUPER_ALARM_UPLOAD_STORE_FILE")
+                ?: signingProps.getProperty("SUPER_ALARM_UPLOAD_STORE_FILE")
+            storeFile uploadStoreFile
+                ? rootProject.file(uploadStoreFile)
                 : null
-            storePassword signingProps.getProperty("SUPER_ALARM_UPLOAD_STORE_PASSWORD", "android")
-            keyAlias signingProps.getProperty("SUPER_ALARM_UPLOAD_KEY_ALIAS", "androiddebugkey")
-            keyPassword signingProps.getProperty("SUPER_ALARM_UPLOAD_KEY_PASSWORD", "android")
+            storePassword System.getenv("SUPER_ALARM_UPLOAD_STORE_PASSWORD")
+                ?: signingProps.getProperty("SUPER_ALARM_UPLOAD_STORE_PASSWORD")
+            keyAlias System.getenv("SUPER_ALARM_UPLOAD_KEY_ALIAS")
+                ?: signingProps.getProperty("SUPER_ALARM_UPLOAD_KEY_ALIAS")
+            keyPassword System.getenv("SUPER_ALARM_UPLOAD_KEY_PASSWORD")
+                ?: signingProps.getProperty("SUPER_ALARM_UPLOAD_KEY_PASSWORD")
         }
     }
     buildTypes {

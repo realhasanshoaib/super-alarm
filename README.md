@@ -23,7 +23,9 @@ xcodebuild -workspace ios/SuperAlarm.xcworkspace -scheme SuperAlarm -configurati
 
 ## Android Release Signing
 
-Release signing uses an ignored local file at `android/super-alarm-signing.properties`.
+The canonical Android upload key is stored in the 1Password `Mobile App Releases` vault. `scripts/release/build-signed-android.sh` reconstructs the signing environment temporarily, verifies the keystore and certificate fingerprints, runs the tests, and produces a signed AAB under `build/release/`.
+
+For direct local Gradle use, release signing also supports an ignored local file at `android/super-alarm-signing.properties`.
 
 Expected keys:
 
@@ -54,10 +56,18 @@ JAVA_HOME=/opt/homebrew/Cellar/openjdk@17/17.0.18/libexec/openjdk.jdk/Contents/H
 
 The iOS app uses bundle ID `com.superalarm.app`. Critical Alerts require Apple approval and provisioning profiles that include `com.apple.developer.usernotifications.critical-alerts`; see `ios/CRITICAL_ALERTS.md`.
 
+`scripts/release/build-signed-ios.sh` reconstructs a temporary keychain from the verified 1Password recovery bundle, archives and exports the app, verifies its signature, uploads dSYMs to Sentry, and removes the temporary keychain and profile.
+
 ```sh
 xcodebuild -workspace ios/SuperAlarm.xcworkspace -scheme SuperAlarm -configuration Release -destination generic/platform=iOS -archivePath build/ios/SuperAlarm.xcarchive archive
 xcodebuild -exportArchive -archivePath build/ios/SuperAlarm.xcarchive -exportPath build/ios/export -exportOptionsPlist build/ios/ExportOptions.plist
 ```
+
+## Continuous Integration
+
+`.github/workflows/ci.yml` runs Android tests and a debug build plus an unsigned iOS simulator build without release credentials. `.github/workflows/signed-build.yml` is manually dispatched through the `production-signing` environment and fetches release credentials from 1Password only for the signed-build jobs.
+
+`release/manifest.json` is the reviewed, non-secret authority for bundle and package identifiers, 1Password item references, and public signing fingerprints. Recovered credentials must match this manifest before a release build starts.
 
 ## Store Readiness Inputs
 

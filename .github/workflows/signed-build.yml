@@ -1,0 +1,92 @@
+name: Signed release builds
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Platform to build
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - android
+          - ios
+
+permissions:
+  contents: read
+
+concurrency:
+  group: super-alarm-signed-build
+  cancel-in-progress: false
+
+jobs:
+  android:
+    if: inputs.platform == 'all' || inputs.platform == 'android'
+    name: Signed Android bundle
+    runs-on: ubuntu-latest
+    environment: production-signing
+    timeout-minutes: 45
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Set up Java 17
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947
+        with:
+          cache-disabled: true
+
+      - name: Install 1Password CLI
+        uses: 1password/install-cli-action@9a0c9dd934086b7ab1d90115d455bda1c53c2bdb
+
+      - name: Build and verify the signed bundle
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: scripts/release/build-signed-android.sh
+
+      - name: Preserve signed Android evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: super-alarm-android-signed
+          path: build/release/*.aab
+          if-no-files-found: warn
+          retention-days: 14
+
+  ios:
+    if: inputs.platform == 'all' || inputs.platform == 'ios'
+    name: Signed iOS archive
+    runs-on: macos-26
+    environment: production-signing
+    timeout-minutes: 60
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Install 1Password CLI
+        uses: 1password/install-cli-action@9a0c9dd934086b7ab1d90115d455bda1c53c2bdb
+
+      - name: Install Sentry CLI
+        run: brew install getsentry/tools/sentry-cli
+
+      - name: Build, verify, and upload symbols
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: scripts/release/build-signed-ios.sh
+
+      - name: Preserve signed iOS evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: super-alarm-ios-signed
+          path: |
+            build/release/*.ipa
+            build/release/*-dsyms.zip
+          if-no-files-found: warn
+          retention-days: 14

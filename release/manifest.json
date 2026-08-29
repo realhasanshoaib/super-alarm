@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "product": "Super Alarm",
+  "android": {
+    "package_name": "com.superalarm.app",
+    "signing_item": "Super Alarm Android Upload Signing 2026-08-29",
+    "keystore_sha256": "e8ceccb1ac4e7fd0646773f4468ea72ab8b28db7218206408794eeffef2a229e",
+    "certificate_sha256": "56:95:CD:E1:B7:4A:B1:8D:12:B8:B9:94:73:58:92:41:94:EF:C8:47:48:13:A7:C4:4D:8E:53:E9:EE:85:31:3C"
+  },
+  "apple": {
+    "bundle_id": "com.superalarm.app",
+    "team_id": "5K9635LZ6F",
+    "certificate_sha256": "97:B9:31:DA:10:8D:7E:DE:A6:FC:88:32:85:A6:7A:E9:71:3B:28:49:27:AB:9A:BC:5A:71:BA:9D:91:8B:69:98",
+    "certificate_expires_at": "2027-05-20T06:39:05Z",
+    "p12_item_id": "jw7juoemfup6yh5lbjaklpn7va",
+    "p12_password_item_id": "ndofbbyh5laduewwm2pfltq37y",
+    "profile_item_id": "nwfsd3m7mfv2b3fmdpkmbh7db4",
+    "profile_name": "Super Alarm App Store",
+    "profile_uuid": "bbb4a431-2bf4-4075-802c-b44a37860335",
+    "profile_expires_at": "2027-05-20T06:39:05Z"
+  },
+  "sentry": {
+    "credential_item": "Sentry Q9 Labs release uploads",
+    "organization": "q9labs",
+    "android_project": "super-alarm-android",
+    "ios_project": "super-alarm-ios"
+  }
+}
