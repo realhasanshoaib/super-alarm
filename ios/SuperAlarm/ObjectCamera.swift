@@ -113,8 +113,12 @@ final class ObjectCameraViewController: UIViewController, AVCaptureVideoDataOutp
         lifecycleLock.lock()
         _stopped = true
         lifecycleLock.unlock()
-        sessionQueue.async { [session] in
+        sessionQueue.async { [self] in
+            videoOutput?.setSampleBufferDelegate(nil, queue: nil)
             if session.isRunning { session.stopRunning() }
+            DispatchQueue.main.async { [self] in
+                previewLayer.session = nil
+            }
         }
     }
 

@@ -25,6 +25,7 @@ import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.GlanceComponents
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.action.actionRunCallback
@@ -73,6 +74,20 @@ class SuperAlarmWidget : GlanceAppWidget() {
       DpSize(300.dp, 140.dp),
     ),
   )
+
+  @Suppress("RestrictedApi")
+  override fun getComponents(context: Context): GlanceComponents {
+    val defaults = GlanceComponents.getDefault(context)
+    return GlanceComponents(
+      actionTrampolineActivity = defaults.actionTrampolineActivity,
+      invisibleActionTrampolineActivity = ComponentName(
+        context,
+        ResilientWidgetActionActivity::class.java,
+      ),
+      actionCallbackBroadcastReceiver = defaults.actionCallbackBroadcastReceiver,
+      remoteViewsService = defaults.remoteViewsService,
+    )
+  }
 
   override suspend fun provideGlance(context: Context, id: GlanceId) {
     val config = AlarmStorage.readAlarmConfig(context)

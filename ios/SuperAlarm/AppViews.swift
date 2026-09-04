@@ -851,7 +851,10 @@ final class AvFoundationScannerViewController: UIViewController, AVCaptureMetada
         sessionQueue.async { [weak self] in
             guard let self, !self.isConfigured else { return }
             self.session.beginConfiguration()
-            defer { self.session.commitConfiguration() }
+            defer {
+                self.session.commitConfiguration()
+                self.startIfReady()
+            }
 
             guard
                 let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
@@ -876,7 +879,6 @@ final class AvFoundationScannerViewController: UIViewController, AVCaptureMetada
             output.setMetadataObjectsDelegate(self, queue: .main)
             output.metadataObjectTypes = [.qr]
             self.isConfigured = true
-            self.startIfReady()
         }
     }
 
