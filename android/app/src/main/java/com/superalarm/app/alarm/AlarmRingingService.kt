@@ -21,6 +21,7 @@ import android.os.Vibrator
 import androidx.core.app.NotificationCompat
 import com.superalarm.app.MainActivity
 import com.superalarm.app.R
+import com.superalarm.app.telemetry.AlarmKind
 import com.superalarm.app.telemetry.ProductEvent
 import com.superalarm.app.telemetry.SuperAlarmTelemetry
 import com.superalarm.app.telemetry.TelemetryEventName
@@ -79,6 +80,7 @@ class AlarmRingingService : Service() {
       TelemetryEventName.RingingStarted,
       source = if (kind == "test") TelemetrySource.Onboarding else TelemetrySource.System,
       count = backupStage,
+      alarmKind = AlarmKind.fromWireName(kind),
     ))
 
     return START_STICKY

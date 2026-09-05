@@ -57,6 +57,7 @@ import com.superalarm.app.alarm.AlarmStorage
 import com.superalarm.app.telemetry.ProductEvent
 import com.superalarm.app.telemetry.SuperAlarmTelemetry
 import com.superalarm.app.telemetry.TelemetryEventName
+import com.superalarm.app.telemetry.TelemetryFailureCode
 import com.superalarm.app.telemetry.TelemetryFailureOperation
 import com.superalarm.app.telemetry.TelemetryOutcome
 import com.superalarm.app.telemetry.TelemetrySource
@@ -195,7 +196,7 @@ class SetSleepDurationAction : ActionCallback {
         TelemetryEventName.WidgetActionFailed,
         source = TelemetrySource.Widget,
         outcome = TelemetryOutcome.Blocked,
-        failureCode = "missing_dismissal_target",
+        failureCode = TelemetryFailureCode.MissingDismissalTarget,
       ))
       context.startActivity(
         Intent(context, MainActivity::class.java)

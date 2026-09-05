@@ -75,6 +75,7 @@ data class AppState(
   val diagnosticEvents: List<AlarmDiagnosticEvent> = emptyList(),
   val runtime: AlarmRuntimeState? = null,
   val onboardingComplete: Boolean = false,
+  val onboardingDismissed: Boolean = false,
   val onboardingStep: Int = OnboardingSteps.Welcome,
   val onboardingTestScheduledAtMillis: Long? = null,
 )
@@ -88,6 +89,64 @@ object OnboardingSteps {
   const val Ready = 5
   const val Last = Ready
 }
+
+enum class ActivationStep {
+  DismissalTarget,
+  AlarmSchedule,
+  PhonePermissions,
+}
+
+data class ActivationReadiness(
+  val missingSteps: List<ActivationStep>,
+) {
+  val ready: Boolean get() = missingSteps.isEmpty()
+}
+
+data class OnboardingFlags(
+  val complete: Boolean,
+  val dismissed: Boolean,
+)
+
+fun migratedOnboardingFlags(
+  storedComplete: Boolean,
+  storedDismissed: Boolean?,
+  onboardingStep: Int,
+): OnboardingFlags {
+  val legacySkipped = storedDismissed == null && storedComplete && onboardingStep != OnboardingSteps.Ready
+  return OnboardingFlags(
+    complete = storedComplete && !legacySkipped,
+    dismissed = storedDismissed ?: storedComplete,
+  )
+}
+
+fun AppState.activationReadiness(capabilities: ReliabilityChecklistState): ActivationReadiness =
+  ActivationReadiness(buildList {
+    if (!hasValidDismissalTarget()) add(ActivationStep.DismissalTarget)
+    if (alarm.repeatDays.isEmpty()) add(ActivationStep.AlarmSchedule)
+    if (!capabilities.notificationsGranted ||
+      !capabilities.exactAlarmAllowed ||
+      !capabilities.fullscreenIntentAllowed
+    ) {
+      add(ActivationStep.PhonePermissions)
+    }
+  })
+
+fun AppState.resumeOnboardingStep(capabilities: ReliabilityChecklistState): Int =
+  when (onboardingStep) {
+    OnboardingSteps.Welcome, OnboardingSteps.DismissalMethod ->
+      if (hasValidDismissalTarget()) OnboardingSteps.Alarm else OnboardingSteps.DismissalMethod
+    OnboardingSteps.Alarm ->
+      if (hasValidDismissalTarget()) OnboardingSteps.Alarm else OnboardingSteps.DismissalMethod
+    else -> when (activationReadiness(capabilities).missingSteps.firstOrNull()) {
+      ActivationStep.DismissalTarget -> OnboardingSteps.DismissalMethod
+      ActivationStep.AlarmSchedule -> OnboardingSteps.Alarm
+      ActivationStep.PhonePermissions, null -> OnboardingSteps.PhoneSetup
+    }
+  }
+
+fun AppState.hasValidDismissalTarget(): Boolean =
+  qrLocations.any { it.id in alarm.allowedLocationIds } ||
+    objectTargets.any { it.id in alarm.allowedObjectTargetIds && it.embeddings.isNotEmpty() }
 
 fun AppState.onboardingTestPassed(): Boolean {
   val scheduledAtMillis = onboardingTestScheduledAtMillis ?: return false
@@ -109,22 +168,34 @@ fun AppState.toJson(): JSONObject = JSONObject().apply {
   put("diagnosticEvents", JSONArray(diagnosticEvents.map { it.toJson() }))
   put("runtime", runtime?.toJson() ?: JSONObject.NULL)
   put("onboardingComplete", onboardingComplete)
+  put("onboardingDismissed", onboardingDismissed)
   put("onboardingStep", onboardingStep)
   put("onboardingTestScheduledAtMillis", onboardingTestScheduledAtMillis ?: JSONObject.NULL)
 }
 
-fun appStateFromJson(json: JSONObject): AppState = AppState(
-  alarm = alarmFromJson(json.optJSONObject("alarm") ?: JSONObject()),
-  qrLocations = json.optJSONArray("qrLocations").toObjectList(::qrLocationFromJson),
-  objectTargets = json.optJSONArray("objectTargets").toObjectList(::objectTargetFromJson),
-  attempts = json.optJSONArray("attempts").toObjectList(::attemptFromJson),
-  diagnosticEvents = json.optJSONArray("diagnosticEvents").toObjectList(::eventFromJson),
-  runtime = json.optJSONObject("runtime")?.let(::runtimeFromJson),
-  onboardingComplete = json.optBoolean("onboardingComplete", false),
-  onboardingStep = json.optInt("onboardingStep", OnboardingSteps.Welcome)
-    .coerceIn(OnboardingSteps.Welcome, OnboardingSteps.Last),
-  onboardingTestScheduledAtMillis = json.optNullableLong("onboardingTestScheduledAtMillis"),
-)
+fun appStateFromJson(json: JSONObject): AppState {
+  val onboardingStep = json.optInt("onboardingStep", OnboardingSteps.Welcome)
+    .coerceIn(OnboardingSteps.Welcome, OnboardingSteps.Last)
+  val storedComplete = json.optBoolean("onboardingComplete", false)
+  val flags = migratedOnboardingFlags(
+    storedComplete = storedComplete,
+    storedDismissed = if (json.has("onboardingDismissed")) json.optBoolean("onboardingDismissed", false) else null,
+    onboardingStep = onboardingStep,
+  )
+
+  return AppState(
+    alarm = alarmFromJson(json.optJSONObject("alarm") ?: JSONObject()),
+    qrLocations = json.optJSONArray("qrLocations").toObjectList(::qrLocationFromJson),
+    objectTargets = json.optJSONArray("objectTargets").toObjectList(::objectTargetFromJson),
+    attempts = json.optJSONArray("attempts").toObjectList(::attemptFromJson),
+    diagnosticEvents = json.optJSONArray("diagnosticEvents").toObjectList(::eventFromJson),
+    runtime = json.optJSONObject("runtime")?.let(::runtimeFromJson),
+    onboardingComplete = flags.complete,
+    onboardingDismissed = flags.dismissed,
+    onboardingStep = onboardingStep,
+    onboardingTestScheduledAtMillis = json.optNullableLong("onboardingTestScheduledAtMillis"),
+  )
+}
 
 fun AlarmConfig.toJson(): JSONObject = JSONObject().apply {
   put("id", id)

@@ -15,6 +15,64 @@ import java.time.ZonedDateTime
 
 class DomainRulesTest {
   @Test
+  fun legacySkipBecomesDismissedButIncompleteWithoutRenumberingProgress() {
+    val flags = migratedOnboardingFlags(
+      storedComplete = true,
+      storedDismissed = null,
+      onboardingStep = OnboardingSteps.Alarm,
+    )
+
+    assertFalse(flags.complete)
+    assertTrue(flags.dismissed)
+    assertEquals(2, OnboardingSteps.Alarm)
+  }
+
+  @Test
+  fun completedUserStaysCompleteWhenAlarmWasLaterDisabled() {
+    val flags = migratedOnboardingFlags(
+      storedComplete = true,
+      storedDismissed = null,
+      onboardingStep = OnboardingSteps.Ready,
+    )
+
+    assertTrue(flags.complete)
+    assertTrue(flags.dismissed)
+  }
+
+  @Test
+  fun onboardingResumesAtTheFirstUnfinishedActivationStep() {
+    val permissionsReady = ReliabilityChecklistState(
+      notificationsGranted = true,
+      exactAlarmAllowed = true,
+      fullscreenIntentAllowed = true,
+    )
+    val fresh = AppState(onboardingStep = OnboardingSteps.Welcome)
+    val target = QrLocation(id = "mirror", label = "Mirror")
+    val targetReady = AppState(
+      alarm = AlarmConfig(allowedLocationIds = listOf(target.id)),
+      qrLocations = listOf(target),
+      onboardingStep = OnboardingSteps.Alarm,
+    )
+    val phoneSetup = targetReady.copy(onboardingStep = OnboardingSteps.WakeUpTest)
+
+    assertEquals(OnboardingSteps.DismissalMethod, fresh.resumeOnboardingStep(permissionsReady))
+    assertEquals(OnboardingSteps.Alarm, targetReady.resumeOnboardingStep(permissionsReady))
+    assertEquals(OnboardingSteps.PhoneSetup, phoneSetup.resumeOnboardingStep(permissionsReady))
+  }
+
+  @Test
+  fun readinessRejectsDanglingTargetsAndNamesMissingPhoneSetup() {
+    val state = AppState(alarm = AlarmConfig(allowedLocationIds = listOf("deleted")))
+    val readiness = state.activationReadiness(ReliabilityChecklistState(notificationsGranted = false))
+
+    assertEquals(
+      listOf(ActivationStep.DismissalTarget, ActivationStep.PhonePermissions),
+      readiness.missingSteps,
+    )
+    assertFalse(readiness.ready)
+  }
+
+  @Test
   fun onboardingTestPassRequiresScheduledTargetDismissal() {
     val scheduledAt = Instant.parse("2026-07-30T12:00:00Z").toEpochMilli()
     val dismissed = AlarmAttempt(

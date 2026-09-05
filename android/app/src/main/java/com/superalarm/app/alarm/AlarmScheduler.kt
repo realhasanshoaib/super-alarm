@@ -6,30 +6,47 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import com.superalarm.app.MainActivity
+import com.superalarm.app.telemetry.AlarmKind
+import com.superalarm.app.telemetry.ProductEvent
+import com.superalarm.app.telemetry.SuperAlarmTelemetry
+import com.superalarm.app.telemetry.TelemetryEventName
+import com.superalarm.app.telemetry.TelemetryFailureCode
+import com.superalarm.app.telemetry.TelemetryFailureOperation
+import com.superalarm.app.telemetry.TelemetrySource
 import java.time.DayOfWeek
 import java.time.ZoneId
 import java.time.ZonedDateTime
 
+sealed interface AlarmScheduleResult {
+  data class Scheduled(val triggerAtMillis: Long) : AlarmScheduleResult
+  data object NotScheduled : AlarmScheduleResult
+  data class Failed(val cause: RuntimeException) : AlarmScheduleResult
+}
+
 object AlarmScheduler {
-  fun scheduleNext(context: Context, config: StoredAlarmConfig, fromEpochMillis: Long = System.currentTimeMillis()) {
+  fun scheduleNext(
+    context: Context,
+    config: StoredAlarmConfig,
+    fromEpochMillis: Long = System.currentTimeMillis(),
+  ): AlarmScheduleResult {
     cancelUpcoming(context, config)
 
     if (!config.enabled || config.repeatDays.isEmpty()) {
       AlarmStorage.setScheduledTriggerAt(context, 0L)
-      return
+      return AlarmScheduleResult.NotScheduled
     }
 
     val triggerAtMillis = computeNextTriggerMillis(config, fromEpochMillis)
-    scheduleOccurrence(context, config, triggerAtMillis)
+    return scheduleOccurrence(context, config, triggerAtMillis)
   }
 
-  fun scheduleOneShot(context: Context, config: StoredAlarmConfig, triggerAtMillis: Long) {
+  fun scheduleOneShot(context: Context, config: StoredAlarmConfig, triggerAtMillis: Long): AlarmScheduleResult {
     cancelUpcoming(context, config)
     if (!config.enabled || triggerAtMillis <= System.currentTimeMillis()) {
       AlarmStorage.setScheduledTriggerAt(context, 0L)
-      return
+      return AlarmScheduleResult.NotScheduled
     }
-    scheduleOccurrence(context, config, triggerAtMillis)
+    return scheduleOccurrence(context, config, triggerAtMillis)
   }
 
   fun scheduleTest(
@@ -41,6 +58,7 @@ object AlarmScheduler {
   ): Long? {
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
+      captureScheduleBlocked(AlarmKind.Test)
       return null
     }
 
@@ -48,50 +66,77 @@ object AlarmScheduler {
     val triggerAtMillis = nowMillis + delayMillis.coerceAtLeast(5_000L)
     val showIntent = buildShowPendingIntent(context, config.alarmId, triggerAtMillis, 0, "test")
     val receiverIntent = buildReceiverPendingIntent(context, config.alarmId, triggerAtMillis, 0, "test", config)
-    alarmManager.setAlarmClock(
-      AlarmManager.AlarmClockInfo(triggerAtMillis, showIntent),
-      receiverIntent,
-    )
-    return triggerAtMillis
+    return try {
+      alarmManager.setAlarmClock(
+        AlarmManager.AlarmClockInfo(triggerAtMillis, showIntent),
+        receiverIntent,
+      )
+      captureScheduled(AlarmKind.Test)
+      triggerAtMillis
+    } catch (error: RuntimeException) {
+      captureScheduleFailure(AlarmKind.Test, error)
+      null
+    }
   }
 
-  private fun scheduleOccurrence(context: Context, config: StoredAlarmConfig, triggerAtMillis: Long) {
+  private fun scheduleOccurrence(
+    context: Context,
+    config: StoredAlarmConfig,
+    triggerAtMillis: Long,
+  ): AlarmScheduleResult {
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
       AlarmStorage.setScheduledTriggerAt(context, 0L)
-      return
+      captureScheduleBlocked(AlarmKind.Live)
+      return AlarmScheduleResult.NotScheduled
     }
-    val showIntent = buildShowPendingIntent(context, config.alarmId, triggerAtMillis, 0, "live")
-    val mainPendingIntent = buildReceiverPendingIntent(context, config.alarmId, triggerAtMillis, 0, "live", config)
-
-    alarmManager.setAlarmClock(
-      AlarmManager.AlarmClockInfo(triggerAtMillis, showIntent),
-      mainPendingIntent,
-    )
-
-    config.backupOffsetsSeconds.forEachIndexed { index, offsetSeconds ->
-      val backupStage = index + 1
-      val backupTriggerAt = triggerAtMillis + offsetSeconds * 1_000L
-      val backupIntent = buildReceiverPendingIntent(context, config.alarmId, triggerAtMillis, backupStage, "live", config)
-      val backupShowIntent = buildShowPendingIntent(context, config.alarmId, triggerAtMillis, backupStage, "live")
-
+    return try {
+      val showIntent = buildShowPendingIntent(context, config.alarmId, triggerAtMillis, 0, "live")
+      val mainPendingIntent = buildReceiverPendingIntent(context, config.alarmId, triggerAtMillis, 0, "live", config)
       alarmManager.setAlarmClock(
-        AlarmManager.AlarmClockInfo(backupTriggerAt, backupShowIntent),
-        backupIntent,
+        AlarmManager.AlarmClockInfo(triggerAtMillis, showIntent),
+        mainPendingIntent,
       )
-    }
 
-    AlarmStorage.setScheduledTriggerAt(context, triggerAtMillis)
+      config.backupOffsetsSeconds.forEachIndexed { index, offsetSeconds ->
+        val backupStage = index + 1
+        val backupTriggerAt = triggerAtMillis + offsetSeconds * 1_000L
+        val backupIntent = buildReceiverPendingIntent(context, config.alarmId, triggerAtMillis, backupStage, "live", config)
+        val backupShowIntent = buildShowPendingIntent(context, config.alarmId, triggerAtMillis, backupStage, "live")
+
+        alarmManager.setAlarmClock(
+          AlarmManager.AlarmClockInfo(backupTriggerAt, backupShowIntent),
+          backupIntent,
+        )
+      }
+
+      AlarmStorage.setScheduledTriggerAt(context, triggerAtMillis)
+      captureScheduled(AlarmKind.Live)
+      AlarmScheduleResult.Scheduled(triggerAtMillis)
+    } catch (error: RuntimeException) {
+      try {
+        cancelOccurrence(context, config, triggerAtMillis, "live")
+      } catch (cleanupError: RuntimeException) {
+        error.addSuppressed(cleanupError)
+      }
+      AlarmStorage.setScheduledTriggerAt(context, 0L)
+      captureScheduleFailure(AlarmKind.Live, error)
+      AlarmScheduleResult.Failed(error)
+    }
   }
 
-  fun scheduleNextAfterTrigger(context: Context, config: StoredAlarmConfig, triggerAtMillis: Long) {
+  fun scheduleNextAfterTrigger(
+    context: Context,
+    config: StoredAlarmConfig,
+    triggerAtMillis: Long,
+  ): AlarmScheduleResult {
     if (!config.enabled || config.repeatDays.isEmpty()) {
       AlarmStorage.setScheduledTriggerAt(context, 0L)
-      return
+      return AlarmScheduleResult.NotScheduled
     }
 
     val nextTriggerAtMillis = computeNextTriggerMillis(config, triggerAtMillis + 60_000L)
-    scheduleOccurrence(context, config, nextTriggerAtMillis)
+    return scheduleOccurrence(context, config, nextTriggerAtMillis)
   }
 
   fun cancelUpcoming(context: Context, config: StoredAlarmConfig) {
@@ -192,6 +237,36 @@ object AlarmScheduler {
     }
 
     return candidate.toInstant().toEpochMilli()
+  }
+
+  private fun captureScheduled(kind: AlarmKind) {
+    SuperAlarmTelemetry.capture(ProductEvent(
+      TelemetryEventName.AlarmScheduled,
+      source = TelemetrySource.System,
+      alarmKind = kind,
+    ))
+  }
+
+  private fun captureScheduleBlocked(kind: AlarmKind) {
+    SuperAlarmTelemetry.capture(ProductEvent(
+      TelemetryEventName.AlarmScheduleFailed,
+      source = TelemetrySource.System,
+      outcome = com.superalarm.app.telemetry.TelemetryOutcome.Blocked,
+      alarmKind = kind,
+      permissionKind = com.superalarm.app.telemetry.TelemetryPermissionKind.ExactAlarm,
+      failureCode = TelemetryFailureCode.ExactAlarmDenied,
+    ))
+  }
+
+  private fun captureScheduleFailure(kind: AlarmKind, error: RuntimeException) {
+    SuperAlarmTelemetry.captureFailure(TelemetryFailureOperation.AlarmScheduling, error)
+    SuperAlarmTelemetry.capture(ProductEvent(
+      TelemetryEventName.AlarmScheduleFailed,
+      source = TelemetrySource.System,
+      outcome = com.superalarm.app.telemetry.TelemetryOutcome.Failed,
+      alarmKind = kind,
+      failureCode = TelemetryFailureCode.ScheduleFailed,
+    ))
   }
 }
 

@@ -26,6 +26,9 @@ enum class TelemetryEventName(val wireName: String) {
   OnboardingSkipped("onboarding_skipped"),
   OnboardingCompleted("onboarding_completed"),
   OnboardingRestarted("onboarding_restarted"),
+  DismissalTargetReady("dismissal_target_ready"),
+  AlarmPermissionsReady("alarm_permissions_ready"),
+  PhoneSetupBlocked("phone_setup_blocked"),
   PermissionActionSelected("permission_action_selected"),
   PermissionResultObserved("permission_result_observed"),
   DeviceSettingsOpened("device_settings_opened"),
@@ -80,6 +83,34 @@ enum class TelemetrySurface(val wireName: String) {
 
 enum class DismissalTargetType(val wireName: String) { Object("object"), Qr("qr") }
 
+enum class AlarmKind(val wireName: String) {
+  Live("live"),
+  Test("test");
+
+  companion object {
+    fun fromWireName(value: String): AlarmKind = entries.firstOrNull { it.wireName == value } ?: Live
+  }
+}
+
+enum class TelemetryPermissionKind(val wireName: String) {
+  Camera("camera"),
+  Notifications("notifications"),
+  ExactAlarm("exact_alarm"),
+  FullScreenAlarm("full_screen_alarm"),
+  BatteryOptimization("battery_optimization"),
+  DeviceSupport("device_support"),
+}
+
+enum class TelemetryFailureCode(val wireName: String) {
+  MissingTarget("missing_target"),
+  MissingRepeatDays("missing_repeat_days"),
+  NotificationsDenied("notifications_denied"),
+  ExactAlarmDenied("exact_alarm_denied"),
+  FullScreenAlarmDenied("full_screen_alarm_denied"),
+  ScheduleFailed("schedule_failed"),
+  MissingDismissalTarget("missing_dismissal_target"),
+}
+
 enum class TelemetrySource(val wireName: String) { App("app"), Onboarding("onboarding"), Widget("widget"), Notification("notification"), System("system") }
 
 enum class TelemetryOutcome(val wireName: String) { Success("success"), Failed("failed"), Blocked("blocked"), Cancelled("cancelled"), Allowed("allowed"), Denied("denied") }
@@ -98,11 +129,12 @@ data class ProductEvent(
   val name: TelemetryEventName,
   val surface: TelemetrySurface? = null,
   val onboardingStep: Int? = null,
+  val alarmKind: AlarmKind? = null,
   val targetType: DismissalTargetType? = null,
   val source: TelemetrySource? = null,
   val outcome: TelemetryOutcome? = null,
-  val permissionKind: String? = null,
-  val failureCode: String? = null,
+  val permissionKind: TelemetryPermissionKind? = null,
+  val failureCode: TelemetryFailureCode? = null,
   val count: Int? = null,
   val durationSeconds: Int? = null,
   val enabled: Boolean? = null,
@@ -183,11 +215,12 @@ object SuperAlarmTelemetry : Telemetry {
       put("environment", if (BuildConfig.DEBUG) "development" else "production")
       event.surface?.let { put("surface", it.wireName) }
       event.onboardingStep?.let { put("onboarding_step", it.coerceIn(0, 5)) }
+      event.alarmKind?.let { put("alarm_kind", it.wireName) }
       event.targetType?.let { put("target_type", it.wireName) }
       event.source?.let { put("source", it.wireName) }
       event.outcome?.let { put("outcome", it.wireName) }
-      event.permissionKind?.let { put("permission_kind", it) }
-      event.failureCode?.let { put("failure_code", it) }
+      event.permissionKind?.let { put("permission_kind", it.wireName) }
+      event.failureCode?.let { put("failure_code", it.wireName) }
       event.count?.let { put("count", it.coerceIn(0, 100)) }
       event.durationSeconds?.let { put("duration_seconds", it.coerceIn(0, 86_400)) }
       event.enabled?.let { put("enabled", it) }

@@ -3,6 +3,7 @@ package com.superalarm.app.alarm
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.superalarm.app.telemetry.AlarmKind
 import com.superalarm.app.widget.SuperAlarmWidgetUpdater
 import com.superalarm.app.telemetry.ProductEvent
 import com.superalarm.app.telemetry.SuperAlarmTelemetry
@@ -15,14 +16,16 @@ class AlarmReceiver : BroadcastReceiver() {
     val config = AlarmStorage.readAlarmConfig(context)
     val alarmId = intent.getStringExtra(AlarmConstants.EXTRA_ALARM_ID) ?: config.alarmId
     val kind = intent.getStringExtra(AlarmConstants.EXTRA_KIND) ?: "live"
+    val alarmKind = AlarmKind.fromWireName(kind)
     val backupStage = intent.getIntExtra(AlarmConstants.EXTRA_BACKUP_STAGE, 0)
     val triggerAtMillis = intent.getLongExtra(AlarmConstants.EXTRA_TRIGGER_AT_MILLIS, System.currentTimeMillis())
-    val attemptId = "attempt-${triggerAtMillis}"
+    val attemptId = "attempt-${kind}-${triggerAtMillis}"
     val triggeredAt = Instant.now().toString()
     SuperAlarmTelemetry.capture(ProductEvent(
       name = if (backupStage > 0) TelemetryEventName.BackupRingFired else TelemetryEventName.AlarmFired,
       source = TelemetrySource.System,
       count = backupStage,
+      alarmKind = alarmKind,
     ))
 
     if (backupStage == 0 && kind == "live") {

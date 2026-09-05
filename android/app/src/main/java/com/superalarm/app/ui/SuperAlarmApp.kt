@@ -78,7 +78,10 @@ import com.superalarm.app.BuildConfig
 import com.superalarm.app.data.AlarmConfig
 import com.superalarm.app.data.AlarmAttempt
 import com.superalarm.app.data.AppState
+import com.superalarm.app.data.ActivationStep
 import com.superalarm.app.data.DeviceSupport
+import com.superalarm.app.data.ReliabilityChecklistState
+import com.superalarm.app.data.activationReadiness
 import com.superalarm.app.data.alarmWaitMinutes
 import com.superalarm.app.data.deviceSupportForManufacturer
 import com.superalarm.app.data.sleepWakeTimeMinutes
@@ -92,6 +95,7 @@ import com.superalarm.app.telemetry.ProductEvent
 import com.superalarm.app.telemetry.SuperAlarmTelemetry
 import com.superalarm.app.telemetry.TelemetryEventName
 import com.superalarm.app.telemetry.TelemetryOutcome
+import com.superalarm.app.telemetry.TelemetryPermissionKind
 import com.superalarm.app.telemetry.TelemetrySource
 import com.superalarm.app.telemetry.TelemetrySurface
 import kotlinx.coroutines.delay
@@ -143,7 +147,7 @@ private fun SuperAlarmRoot(store: SuperAlarmStore) {
       TelemetryEventName.PermissionResultObserved,
       source = TelemetrySource.App,
       outcome = if (granted) TelemetryOutcome.Allowed else TelemetryOutcome.Denied,
-      permissionKind = "camera",
+      permissionKind = TelemetryPermissionKind.Camera,
     ))
     if (granted) {
       enrollmentRequest = pendingEnrollmentRequest
@@ -161,8 +165,8 @@ private fun SuperAlarmRoot(store: SuperAlarmStore) {
     } else {
       SuperAlarmTelemetry.capture(ProductEvent(
         TelemetryEventName.PermissionActionSelected,
-        source = if (state.onboardingComplete) TelemetrySource.App else TelemetrySource.Onboarding,
-        permissionKind = "camera",
+        source = if (state.onboardingDismissed) TelemetrySource.App else TelemetrySource.Onboarding,
+        permissionKind = TelemetryPermissionKind.Camera,
       ))
       pendingEnrollmentRequest = request
       enrollmentPermission.launch(Manifest.permission.CAMERA)
@@ -200,7 +204,7 @@ private fun SuperAlarmRoot(store: SuperAlarmStore) {
     return
   }
 
-  if (!state.onboardingComplete) {
+  if (!state.onboardingDismissed) {
     OnboardingScreen(
       state = state,
       store = store,
@@ -225,8 +229,11 @@ private fun SuperAlarmRoot(store: SuperAlarmStore) {
       Tab.Alarm -> AlarmScreen(
         modifier = Modifier.padding(padding),
         state = state,
+        store = store,
         onToggleEnabled = { enabled ->
-          if (!store.setEnabled(enabled)) scope.launch { snackbar.showSnackbar("Add an allowed QR spot or object first") }
+          if (!store.setEnabled(enabled)) {
+            scope.launch { snackbar.showSnackbar("Finish the required alarm setup before enabling it") }
+          }
         },
         onTime = store::setTime,
         onDay = store::toggleDay,
@@ -250,6 +257,15 @@ private fun SuperAlarmRoot(store: SuperAlarmStore) {
                 }
               }
             }
+          }
+        },
+        onVerifyPhone = {
+          val scheduled = store.schedulePhoneVerification()
+          scope.launch {
+            snackbar.showSnackbar(
+              if (scheduled) "Verification rings in 10 seconds. Lock your phone now."
+              else "Finish the required alarm setup before verifying this phone.",
+            )
           }
         },
       )
@@ -280,11 +296,13 @@ private fun SuperAlarmRoot(store: SuperAlarmStore) {
 private fun AlarmScreen(
   modifier: Modifier,
   state: AppState,
+  store: SuperAlarmStore,
   onToggleEnabled: (Boolean) -> Unit,
   onTime: (Int) -> Unit,
   onDay: (Int) -> Unit,
   onVibration: (Boolean) -> Unit,
   onAddWidget: () -> Unit,
+  onVerifyPhone: () -> Unit,
 ) {
   var showTimeEditor by remember { mutableStateOf(false) }
   var clock by remember { mutableStateOf(currentClockSnapshot()) }
@@ -303,6 +321,10 @@ private fun AlarmScreen(
     repeatDays = state.alarm.repeatDays,
   )
   val waitLabel = formatDuration(waitMinutes)
+  val capabilities = store.capabilities()
+  val deviceSupport = deviceSupportForManufacturer(Build.MANUFACTURER)
+  val needsReadinessHelp = !state.onboardingComplete ||
+    (state.alarm.enabled && !state.activationReadiness(capabilities).ready)
 
   LazyColumn(
     modifier = modifier.fillMaxSize(),
@@ -314,6 +336,27 @@ private fun AlarmScreen(
     ),
     verticalArrangement = Arrangement.spacedBy(12.dp),
   ) {
+    if (needsReadinessHelp) {
+      item {
+        ActivationStatusCard(
+          state = state,
+          capabilities = capabilities,
+          onResume = store::resumeOnboarding,
+        )
+      }
+    } else {
+      item { PhoneVerificationCard(onVerifyPhone) }
+    }
+    if (!capabilities.batteryOptimizationRelaxed || deviceSupport != null) {
+      item {
+        ReliabilityChecklistCard(
+          capabilities = capabilities,
+          deviceSupport = deviceSupport,
+          onBattery = store::openBatterySettings,
+          onDeviceSupport = store::openDeviceSupportSettings,
+        )
+      }
+    }
     item { AlarmDial(state.alarm, waitLabel, onEditTime = { showTimeEditor = true }) }
     item {
       ListItem(
@@ -353,6 +396,69 @@ private fun AlarmScreen(
         showTimeEditor = false
       },
     )
+  }
+}
+
+@Composable
+private fun ActivationStatusCard(
+  state: AppState,
+  capabilities: ReliabilityChecklistState,
+  onResume: () -> Unit,
+) {
+  val missingSteps = state.activationReadiness(capabilities).missingSteps
+  val missingLabels = missingSteps.map { step ->
+    when (step) {
+      ActivationStep.DismissalTarget -> "choose a dismissal target"
+      ActivationStep.AlarmSchedule -> "choose repeat days"
+      ActivationStep.PhonePermissions -> "allow required phone permissions"
+    }
+  }
+  Card(modifier = Modifier.fillMaxWidth()) {
+    ListItem(
+      headlineContent = { Text("Alarm not ready: ${missingSteps.size.coerceAtLeast(1)} step${if (missingSteps.size == 1) "" else "s"} remaining") },
+      supportingContent = { Text(missingLabels.ifEmpty { listOf("finish alarm setup") }.joinToString(" · ")) },
+      leadingContent = { Icon(Icons.Default.Alarm, contentDescription = null) },
+      trailingContent = { Button(onClick = onResume) { Text("Resume") } },
+    )
+  }
+}
+
+@Composable
+private fun PhoneVerificationCard(onVerifyPhone: () -> Unit) {
+  Card(modifier = Modifier.fillMaxWidth()) {
+    ListItem(
+      headlineContent = { Text("Verify this phone") },
+      supportingContent = { Text("Optional: confirm sound, lock-screen delivery, and dismissal before tonight.") },
+      leadingContent = { Icon(Icons.Default.HealthAndSafety, contentDescription = null) },
+      trailingContent = { TextButton(onClick = onVerifyPhone) { Text("Verify now") } },
+    )
+  }
+}
+
+@Composable
+private fun ReliabilityChecklistCard(
+  capabilities: ReliabilityChecklistState,
+  deviceSupport: DeviceSupport?,
+  onBattery: () -> Unit,
+  onDeviceSupport: () -> Unit,
+) {
+  Card(modifier = Modifier.fillMaxWidth()) {
+    Column {
+      if (!capabilities.batteryOptimizationRelaxed) {
+        ListItem(
+          headlineContent = { Text("Improve alarm reliability") },
+          supportingContent = { Text("Optional: allow unrestricted battery use if alarms arrive late.") },
+          trailingContent = { TextButton(onClick = onBattery) { Text("Open") } },
+        )
+      }
+      deviceSupport?.let { support ->
+        ListItem(
+          headlineContent = { Text("Check ${support.label} background access") },
+          supportingContent = { Text("Optional: ${support.instruction}") },
+          trailingContent = { TextButton(onClick = onDeviceSupport) { Text("Open") } },
+        )
+      }
+    }
   }
 }
 
@@ -504,13 +610,17 @@ private fun HealthScreen(modifier: Modifier, state: AppState, analyticsEnabled: 
       TelemetryEventName.PermissionResultObserved,
       source = TelemetrySource.App,
       outcome = if (granted) TelemetryOutcome.Allowed else TelemetryOutcome.Denied,
-      permissionKind = "notifications",
+      permissionKind = TelemetryPermissionKind.Notifications,
     ))
     refreshKey++
   }
   LazyColumn(modifier = modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)) {
     item { HealthRow("Notifications", caps.notificationsGranted, "Required for foreground alarm alerts") {
-      SuperAlarmTelemetry.capture(ProductEvent(TelemetryEventName.PermissionActionSelected, source = TelemetrySource.App, permissionKind = "notifications"))
+      SuperAlarmTelemetry.capture(ProductEvent(
+        TelemetryEventName.PermissionActionSelected,
+        source = TelemetrySource.App,
+        permissionKind = TelemetryPermissionKind.Notifications,
+      ))
       if (store.notificationPermissionGranted() || notificationDenied || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
         store.openNotificationSettings()
       } else {
@@ -519,8 +629,12 @@ private fun HealthScreen(modifier: Modifier, state: AppState, analyticsEnabled: 
     } }
     item { HealthRow("Exact alarms", caps.exactAlarmAllowed, "Required for reliable wake-up time", store::openExactAlarmSettings) }
     item { HealthRow("Full-screen intent", caps.fullscreenIntentAllowed, "Opens the ringing screen while locked", store::openFullscreenSettings) }
-    item { HealthRow("Battery optimization", caps.batteryOptimizationRelaxed, "Relax this if alarms are delayed", store::openBatterySettings) }
-    item { DeviceSupportHealthRow(deviceSupport = deviceSupport, onAction = store::openDeviceSupportSettings) }
+    if (!caps.batteryOptimizationRelaxed) {
+      item { HealthRow("Battery optimization", false, "Optional: relax this if alarms are delayed", store::openBatterySettings) }
+    }
+    if (deviceSupport != null) {
+      item { DeviceSupportHealthRow(deviceSupport = deviceSupport, onAction = store::openDeviceSupportSettings) }
+    }
     item { Button(onClick = store::startRoutineTest, modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(52.dp)) { Text("Run routine test") } }
     item { OutlinedButton(onClick = {
       SuperAlarmTelemetry.capture(ProductEvent(TelemetryEventName.DiagnosticsExported, surface = TelemetrySurface.Health))

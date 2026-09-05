@@ -22,15 +22,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Power
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -52,11 +48,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -67,21 +61,19 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.superalarm.app.data.AppState
-import com.superalarm.app.data.DeviceSupport
 import com.superalarm.app.data.OnboardingSteps
 import com.superalarm.app.data.QrLocation
 import com.superalarm.app.data.ReliabilityChecklistState
 import com.superalarm.app.data.SuperAlarmStore
-import com.superalarm.app.data.deviceSupportForManufacturer
-import com.superalarm.app.data.onboardingTestPassed
+import com.superalarm.app.data.resumeOnboardingStep
 import com.superalarm.app.features.qr.qrBitmap
 import com.superalarm.app.telemetry.ProductEvent
 import com.superalarm.app.telemetry.SuperAlarmTelemetry
 import com.superalarm.app.telemetry.TelemetryEventName
 import com.superalarm.app.telemetry.TelemetryOutcome
+import com.superalarm.app.telemetry.TelemetryPermissionKind
 import com.superalarm.app.telemetry.TelemetrySource
 import com.superalarm.app.telemetry.TelemetrySurface
-import kotlinx.coroutines.delay
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
@@ -93,20 +85,20 @@ fun OnboardingScreen(
   cameraDenied: Boolean,
   onScanObject: (String) -> Unit,
 ) {
-  val step = state.onboardingStep
   var refreshKey by remember { mutableStateOf(0) }
   var notificationDenied by remember { mutableStateOf(false) }
   var onboardingQr by remember { mutableStateOf<QrLocation?>(null) }
   var showSkipConfirmation by remember { mutableStateOf(false) }
-  val capabilities = remember(refreshKey, step) { store.capabilities() }
-  val deviceSupport = remember { deviceSupportForManufacturer(Build.MANUFACTURER) }
+  var activationFailed by remember { mutableStateOf(false) }
+  val capabilities = remember(refreshKey, state.onboardingStep) { store.capabilities() }
+  val step = state.resumeOnboardingStep(capabilities)
   val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
     notificationDenied = !granted
     SuperAlarmTelemetry.capture(ProductEvent(
       TelemetryEventName.PermissionResultObserved,
       source = TelemetrySource.Onboarding,
       outcome = if (granted) TelemetryOutcome.Allowed else TelemetryOutcome.Denied,
-      permissionKind = "notifications",
+      permissionKind = TelemetryPermissionKind.Notifications,
     ))
     refreshKey++
   }
@@ -128,11 +120,17 @@ fun OnboardingScreen(
     ))
   }
 
+  LaunchedEffect(step, capabilities) {
+    if (step == OnboardingSteps.PhoneSetup) {
+      store.capturePhoneSetupReadiness(TelemetrySource.Onboarding)
+    }
+  }
+
   LaunchedEffect(Unit) {
     SuperAlarmTelemetry.capture(ProductEvent(TelemetryEventName.OnboardingStarted, source = TelemetrySource.Onboarding))
   }
 
-  BackHandler(enabled = step > OnboardingSteps.Welcome) {
+  BackHandler(enabled = step != OnboardingSteps.DismissalMethod) {
     store.setOnboardingStep(previousOnboardingStep(step))
   }
 
@@ -141,7 +139,7 @@ fun OnboardingScreen(
       CenterAlignedTopAppBar(
         title = { Text("Super Alarm") },
         navigationIcon = {
-          if (step > OnboardingSteps.Welcome) {
+          if (step != OnboardingSteps.DismissalMethod) {
             IconButton(onClick = { store.setOnboardingStep(previousOnboardingStep(step)) }) {
               Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
@@ -152,9 +150,9 @@ fun OnboardingScreen(
             SuperAlarmTelemetry.capture(ProductEvent(TelemetryEventName.OnboardingSkipOpened, onboardingStep = step))
             showSkipConfirmation = true
           }) {
-            Text("Skip")
+            Text("Finish later")
           }
-          Text("${step + 1} of ${OnboardingSteps.Last + 1}", style = MaterialTheme.typography.labelLarge)
+          Text("${activationStepNumber(step)} of 3", style = MaterialTheme.typography.labelLarge)
           Spacer(Modifier.padding(end = 8.dp))
         },
       )
@@ -166,13 +164,10 @@ fun OnboardingScreen(
         .padding(padding),
     ) {
       LinearProgressIndicator(
-        progress = { (step + 1f) / (OnboardingSteps.Last + 1f) },
+        progress = { activationStepNumber(step) / 3f },
         modifier = Modifier.fillMaxWidth(),
       )
       when (step) {
-        OnboardingSteps.Welcome -> WelcomeStep(
-          onContinue = { store.setOnboardingStep(OnboardingSteps.DismissalMethod) },
-        )
         OnboardingSteps.DismissalMethod -> DismissalMethodStep(
           cameraDenied = cameraDenied,
           onCreateQrSpot = {
@@ -187,14 +182,13 @@ fun OnboardingScreen(
         )
         OnboardingSteps.PhoneSetup -> PhoneSetupStep(
           capabilities = capabilities,
-          deviceSupport = deviceSupport,
           notificationPermissionGranted = store.notificationPermissionGranted(),
           notificationDenied = notificationDenied,
           onNotifications = {
             SuperAlarmTelemetry.capture(ProductEvent(
               TelemetryEventName.PermissionActionSelected,
               source = TelemetrySource.Onboarding,
-              permissionKind = "notifications",
+              permissionKind = TelemetryPermissionKind.Notifications,
             ))
             if (store.notificationPermissionGranted() || notificationDenied || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
               store.openNotificationSettings()
@@ -204,24 +198,12 @@ fun OnboardingScreen(
           },
           onExactAlarm = store::openExactAlarmSettings,
           onFullscreen = store::openFullscreenSettings,
-          onBattery = store::openBatterySettings,
-          onDeviceSupport = store::openDeviceSupportSettings,
-          onRunTest = {
-            if (store.scheduleOnboardingTest()) {
-              refreshKey++
-            }
+          activationFailed = activationFailed,
+          onFinish = {
+            activationFailed = !store.completeOnboarding()
           },
         )
-        OnboardingSteps.WakeUpTest -> WakeUpTestStep(
-          state = state,
-          onSchedule = store::scheduleOnboardingTest,
-          onContinue = { store.setOnboardingStep(OnboardingSteps.Ready) },
-        )
-        OnboardingSteps.Ready -> ReadyStep(
-          state = state,
-          capabilities = capabilities,
-          onFinish = store::completeOnboarding,
-        )
+        else -> Unit
       }
     }
   }
@@ -239,10 +221,10 @@ fun OnboardingScreen(
         SuperAlarmTelemetry.capture(ProductEvent(TelemetryEventName.OnboardingSkipCancelled, onboardingStep = step))
         showSkipConfirmation = false
       },
-      title = { Text("Skip setup?") },
-      text = { Text("You can use Super Alarm now, but you still need a dismissal target and alarm permissions before relying on it. Run setup again from Health at any time.") },
+      title = { Text("Finish setup later?") },
+      text = { Text("Your progress is saved. The home screen will show what remains before your alarm is ready.") },
       confirmButton = {
-        TextButton(onClick = store::skipOnboarding) { Text("Skip setup") }
+        TextButton(onClick = store::finishOnboardingLater) { Text("Finish later") }
       },
       dismissButton = {
         TextButton(onClick = {
@@ -251,38 +233,6 @@ fun OnboardingScreen(
         }) { Text("Continue setup") }
       },
     )
-  }
-}
-
-@Composable
-private fun WelcomeStep(onContinue: () -> Unit) {
-  OnboardingPage {
-    Spacer(Modifier.height(16.dp))
-    Icon(
-      Icons.Default.Alarm,
-      contentDescription = null,
-      tint = MaterialTheme.colorScheme.primary,
-      modifier = Modifier.align(Alignment.CenterHorizontally),
-    )
-    Text(
-      "Wake up knowing it works",
-      style = MaterialTheme.typography.headlineMedium,
-      modifier = Modifier
-        .align(Alignment.CenterHorizontally)
-        .semantics { heading() },
-    )
-    Text(
-      "Set a wake-up task, prepare this phone, and prove the alarm works before tonight.",
-      style = MaterialTheme.typography.bodyLarge,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    Spacer(Modifier.height(20.dp))
-    FeatureRow(Icons.Default.Security, "Private by design", "Object scans stay on this phone.")
-    FeatureRow(Icons.Default.CheckCircle, "Tested before bedtime", "You’ll complete a real lock-screen test.")
-    Spacer(Modifier.height(16.dp))
-    Button(onClick = onContinue, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-      Text("Set up my alarm")
-    }
   }
 }
 
@@ -350,7 +300,7 @@ private fun OnboardingQrDialog(
     title = { Text("Save your QR spot") },
     text = {
       Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Screenshot or show this code on another device before continuing. You’ll scan it during the wake-up test.")
+        Text("Screenshot or show this code on another device. You’ll scan it to dismiss your alarm.")
         Image(
           bitmap = bitmap,
           contentDescription = "QR code for ${location.label}",
@@ -450,23 +400,21 @@ private fun AlarmStep(
 @Composable
 private fun PhoneSetupStep(
   capabilities: ReliabilityChecklistState,
-  deviceSupport: DeviceSupport?,
   notificationPermissionGranted: Boolean,
   notificationDenied: Boolean,
   onNotifications: () -> Unit,
   onExactAlarm: () -> Unit,
   onFullscreen: () -> Unit,
-  onBattery: () -> Unit,
-  onDeviceSupport: () -> Unit,
-  onRunTest: () -> Unit,
+  activationFailed: Boolean,
+  onFinish: () -> Unit,
 ) {
   val requiredReady = capabilities.notificationsGranted &&
     capabilities.exactAlarmAllowed &&
     capabilities.fullscreenIntentAllowed
   OnboardingPage {
-    Text("Make the alarm reliable", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
+    Text("Allow your alarm to ring", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
     Text(
-      "Open one phone setting at a time. Super Alarm checks it when you return.",
+      "These three permissions are required. Super Alarm checks each one when you return.",
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     PermissionRow(
@@ -491,154 +439,19 @@ private fun PhoneSetupStep(
       ready = capabilities.fullscreenIntentAllowed,
       onAction = onFullscreen,
     )
-    PermissionRow(
-      icon = Icons.Default.Power,
-      title = "Battery access · recommended",
-      detail = "Helps on Xiaomi, Vivo, and similar phones.",
-      ready = capabilities.batteryOptimizationRelaxed,
-      actionLabel = "Open",
-      onAction = onBattery,
-    )
-    DeviceSupportRow(deviceSupport = deviceSupport, onAction = onDeviceSupport)
-    Spacer(Modifier.height(16.dp))
-    Button(
-      onClick = onRunTest,
-      enabled = requiredReady,
-      modifier = Modifier.fillMaxWidth().height(52.dp),
-    ) {
-      Text(if (requiredReady) "Run wake-up test" else "Prepare required settings")
-    }
-  }
-}
-
-@Composable
-private fun DeviceSupportRow(
-  deviceSupport: DeviceSupport?,
-  onAction: () -> Unit,
-) {
-  Card(modifier = Modifier.fillMaxWidth()) {
-    ListItem(
-      headlineContent = { Text("${deviceSupport?.label ?: "Device"} background access · recommended") },
-      supportingContent = {
-        Text(
-          "${deviceSupport?.instruction ?: "Check Battery or Background activity settings and allow Super Alarm to run unrestricted."} Android cannot report this setting back to Super Alarm.",
-        )
-      },
-      leadingContent = { Icon(Icons.Default.Power, contentDescription = null) },
-      trailingContent = { TextButton(onClick = onAction) { Text("Open") } },
-    )
-  }
-}
-
-@Composable
-private fun WakeUpTestStep(
-  state: AppState,
-  onSchedule: () -> Boolean,
-  onContinue: () -> Unit,
-) {
-  var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
-  val passed = state.onboardingTestPassed()
-  val scheduledAt = state.onboardingTestScheduledAtMillis
-  val waiting = scheduledAt != null && nowMillis < scheduledAt + 25_000L && !passed
-
-  LaunchedEffect(scheduledAt, passed) {
-    while (!passed && scheduledAt != null && nowMillis < scheduledAt + 25_000L) {
-      delay(1_000L)
-      nowMillis = System.currentTimeMillis()
-    }
-  }
-
-  OnboardingPage {
-    Icon(
-      if (passed) Icons.Default.CheckCircle else Icons.Default.Alarm,
-      contentDescription = null,
-      tint = MaterialTheme.colorScheme.primary,
-      modifier = Modifier.align(Alignment.CenterHorizontally),
-    )
-    Text(
-      if (passed) "Your wake-up test passed" else "Lock your phone",
-      style = MaterialTheme.typography.headlineMedium,
-      modifier = Modifier
-        .align(Alignment.CenterHorizontally)
-        .semantics { heading() },
-    )
-    Text(
-      when {
-        passed -> "Background delivery, sound, lock-screen behavior, and dismissal all worked."
-        waiting -> "Super Alarm will ring through the real Android alarm path. Dismiss it with your enrolled target."
-        else -> "The test did not finish. Schedule it again, lock the phone, and dismiss it with your target."
-      },
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    if (passed) {
-      TestResultRow("Background delivery")
-      TestResultRow("Sound and vibration")
-      TestResultRow("Target recognition")
-    } else if (waiting) {
-      val triggerAtMillis = scheduledAt ?: nowMillis
-      val seconds = ((triggerAtMillis - nowMillis).coerceAtLeast(0L) + 999L) / 1_000L
-      Card(modifier = Modifier.fillMaxWidth()) {
-        ListItem(
-          headlineContent = { Text(if (seconds > 0) "Ringing in ${seconds}s" else "Alarm is due now") },
-          supportingContent = { Text("Testing the real background path") },
-          leadingContent = { Icon(Icons.Default.Schedule, contentDescription = null) },
-        )
-      }
-    }
-    Spacer(Modifier.height(16.dp))
-    if (passed) {
-      Button(onClick = onContinue, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-        Text("Finish setup")
-      }
-    } else if (!waiting) {
-      Button(onClick = { onSchedule() }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-        Text("Schedule 10-second test")
-      }
-    }
-  }
-}
-
-@Composable
-private fun ReadyStep(
-  state: AppState,
-  capabilities: ReliabilityChecklistState,
-  onFinish: () -> Unit,
-) {
-  val target = state.objectTargets.firstOrNull { it.id in state.alarm.allowedObjectTargetIds }?.label
-    ?: state.qrLocations.firstOrNull { it.id in state.alarm.allowedLocationIds }?.label
-    ?: "wake-up target"
-  OnboardingPage {
-    Icon(
-      Icons.Default.CheckCircle,
-      contentDescription = null,
-      tint = MaterialTheme.colorScheme.primary,
-      modifier = Modifier.align(Alignment.CenterHorizontally),
-    )
-    Text(
-      "Ready for tonight",
-      style = MaterialTheme.typography.headlineMedium,
-      modifier = Modifier
-        .align(Alignment.CenterHorizontally)
-        .semantics { heading() },
-    )
-    Text(
-      "${formatOnboardingTime(state.alarm.timeMinutesLocal)} · dismissed with $target",
-      style = MaterialTheme.typography.titleMedium,
-      modifier = Modifier.align(Alignment.CenterHorizontally),
-    )
-    Card(modifier = Modifier.fillMaxWidth()) {
-      ListItem(
-        headlineContent = { Text("Alarm protection") },
-        supportingContent = {
-          Text(if (capabilities.batteryOptimizationRelaxed) "Phone prepared and wake-up test passed" else "Wake-up test passed · battery access remains recommended")
-        },
-        leadingContent = { Icon(Icons.Default.Security, contentDescription = null) },
-        trailingContent = { Text("Ready", color = MaterialTheme.colorScheme.primary) },
+    if (activationFailed) {
+      Text(
+        "The alarm could not be scheduled. Check the required settings and try again.",
+        color = MaterialTheme.colorScheme.error,
       )
     }
     Spacer(Modifier.height(16.dp))
-    Button(onClick = onFinish, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-      Text("Go to alarm")
+    Button(
+      onClick = onFinish,
+      enabled = requiredReady,
+      modifier = Modifier.fillMaxWidth().height(52.dp),
+    ) {
+      Text(if (requiredReady) "Enable my alarm" else "Allow required permissions")
     }
   }
 }
@@ -707,22 +520,16 @@ private fun PermissionRow(
   }
 }
 
-@Composable
-private fun TestResultRow(label: String) {
-  ListItem(
-    headlineContent = { Text(label) },
-    trailingContent = { Text("Passed", color = MaterialTheme.colorScheme.primary) },
-    leadingContent = { Icon(Icons.Default.CheckCircle, contentDescription = null) },
-  )
-}
-
 private fun previousOnboardingStep(step: Int): Int = when (step) {
-  OnboardingSteps.DismissalMethod -> OnboardingSteps.Welcome
   OnboardingSteps.Alarm -> OnboardingSteps.DismissalMethod
   OnboardingSteps.PhoneSetup -> OnboardingSteps.Alarm
-  OnboardingSteps.WakeUpTest -> OnboardingSteps.PhoneSetup
-  OnboardingSteps.Ready -> OnboardingSteps.WakeUpTest
-  else -> OnboardingSteps.Welcome
+  else -> OnboardingSteps.DismissalMethod
+}
+
+private fun activationStepNumber(step: Int): Int = when (step) {
+  OnboardingSteps.DismissalMethod -> 1
+  OnboardingSteps.Alarm -> 2
+  else -> 3
 }
 
 private fun formatOnboardingTime(minutes: Int): String {
