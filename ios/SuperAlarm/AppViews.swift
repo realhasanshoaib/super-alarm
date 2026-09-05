@@ -270,8 +270,7 @@ private struct PhoneVerificationCard: View {
     @EnvironmentObject private var store: AppStore
 
     private var testIsPending: Bool {
-        guard let scheduledAt = store.state.onboardingTestScheduledAt else { return false }
-        return scheduledAt.timeIntervalSinceNow > -60 && !store.onboardingTestPassed
+        store.state.onboardingTestScheduledAt != nil && !store.onboardingTestPassed
     }
 
     var body: some View {
@@ -280,7 +279,7 @@ private struct PhoneVerificationCard: View {
                 Label("Notification tap and target dismissal verified", systemImage: "checkmark.seal.fill")
                     .foregroundStyle(Color.brandGreen)
             } else if testIsPending {
-                Text("A test notification is scheduled. Tap it, then dismiss the challenge with your target.")
+                Text("Your test is awaiting completion. Open its notification and scan your target, or cancel it to try again.")
                     .font(.subheadline)
                 Button("Cancel verification test", role: .destructive) {
                     store.cancelVerificationTest()
