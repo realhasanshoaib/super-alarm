@@ -5,10 +5,26 @@ import SwiftUI
 import UIKit
 import Vision
 
+enum ObjectCameraFailure: String, Equatable {
+    case permissionDenied = "permission_denied"
+    case cameraUnavailable = "camera_unavailable"
+    case visionUnavailable = "vision_unavailable"
+    case recognitionFailed = "recognition_failed"
+
+    var message: String {
+        switch self {
+        case .permissionDenied: return "Allow camera access in iOS Settings, or use a QR spot instead."
+        case .cameraUnavailable: return "The camera is unavailable. You can use a QR spot instead."
+        case .visionUnavailable: return "Object scanning is unavailable on this phone. Use a QR spot instead."
+        case .recognitionFailed: return "Object recognition could not start. Try again or use a QR spot."
+        }
+    }
+}
+
 struct ObjectCameraView: UIViewControllerRepresentable {
     let mode: ObjectCaptureMode
     let onFrame: (ObjectFrameSample) -> Void
-    let onError: (String) -> Void
+    let onError: (ObjectCameraFailure) -> Void
 
     func makeUIViewController(context: Context) -> ObjectCameraViewController {
         ObjectCameraViewController(mode: mode, onFrame: onFrame, onError: onError)
@@ -24,7 +40,7 @@ struct ObjectCameraView: UIViewControllerRepresentable {
 final class ObjectCameraViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
     private let mode: ObjectCaptureMode
     private let onFrame: (ObjectFrameSample) -> Void
-    private let onError: (String) -> Void
+    private let onError: (ObjectCameraFailure) -> Void
     private let session = AVCaptureSession()
     private let sessionQueue = DispatchQueue(label: "com.superalarm.object-camera.session")
     private let analysisQueue = DispatchQueue(label: "com.superalarm.object-camera.analysis", qos: .userInitiated)
@@ -53,7 +69,7 @@ final class ObjectCameraViewController: UIViewController, AVCaptureVideoDataOutp
     init(
         mode: ObjectCaptureMode,
         onFrame: @escaping (ObjectFrameSample) -> Void,
-        onError: @escaping (String) -> Void
+        onError: @escaping (ObjectCameraFailure) -> Void
     ) {
         self.mode = mode
         self.onFrame = onFrame
@@ -131,13 +147,13 @@ final class ObjectCameraViewController: UIViewController, AVCaptureVideoDataOutp
                 if granted {
                     self?.configure()
                 } else {
-                    self?.emitError("Camera access is required to scan an object.")
+                    self?.emitError(.permissionDenied)
                 }
             }
         case .denied, .restricted:
-            emitError("Camera access is required. Allow it in iOS Settings.")
+            emitError(.permissionDenied)
         @unknown default:
-            emitError("Camera access is unavailable.")
+            emitError(.cameraUnavailable)
         }
     }
 
@@ -159,7 +175,7 @@ final class ObjectCameraViewController: UIViewController, AVCaptureVideoDataOutp
                 let input = try? AVCaptureDeviceInput(device: device),
                 self.session.canAddInput(input)
             else {
-                self.emitError("Camera is unavailable.")
+                self.emitError(.cameraUnavailable)
                 return
             }
             self.session.addInput(input)
@@ -177,7 +193,7 @@ final class ObjectCameraViewController: UIViewController, AVCaptureVideoDataOutp
                     kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
             ]
             guard self.session.canAddOutput(output) else {
-                self.emitError("Object scanning is unavailable.")
+                self.emitError(.visionUnavailable)
                 return
             }
             self.session.addOutput(output)
@@ -241,7 +257,7 @@ final class ObjectCameraViewController: UIViewController, AVCaptureVideoDataOutp
             guard let observation = request.results?.first else { return }
             emit(sample(from: observation, capturedAt: capturedAt))
         } catch {
-            emitError("Object recognition could not start: \(error.localizedDescription)")
+            emitError(.recognitionFailed)
         }
     }
 
@@ -280,10 +296,10 @@ final class ObjectCameraViewController: UIViewController, AVCaptureVideoDataOutp
         }
     }
 
-    private func emitError(_ message: String) {
+    private func emitError(_ failure: ObjectCameraFailure) {
         DispatchQueue.main.async { [weak self] in
             guard self?.stopped == false else { return }
-            self?.onError(message)
+            self?.onError(failure)
         }
     }
 

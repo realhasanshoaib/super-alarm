@@ -16,7 +16,7 @@ struct RootView: View {
         .sheet(item: $store.activeSheet) { route in
             switch route {
             case .addObject:
-                AddObjectView()
+                AddObjectView(onUseQr: { store.activeSheet = .addSpot })
             case .addSpot:
                 AddQrSpotView()
             case .diagnostics:
@@ -40,14 +40,14 @@ struct RootView: View {
 
     private var onboardingBinding: Binding<Bool> {
         Binding(
-            get: { !store.state.hasCompletedOnboarding },
+            get: { store.shouldPresentOnboarding },
             set: { _ in }
         )
     }
 
     private var regularRingingBinding: Binding<Bool> {
         Binding(
-            get: { store.state.hasCompletedOnboarding && store.isRingingPresented },
+            get: { !store.shouldPresentOnboarding && store.isRingingPresented },
             set: { if !$0 { store.isRingingPresented = false } }
         )
     }
@@ -62,6 +62,21 @@ struct AlarmEditorView: View {
 
     var body: some View {
         List {
+            if store.shouldShowReadinessCard {
+                AlarmReadinessCard()
+            }
+
+            Section("iPhone delivery") {
+                Label("Standard notification", systemImage: "hand.tap")
+                Text("Tap the notification to start continuous sound and the dismissal challenge. Silent mode or Focus can silence the regular notification.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if store.state.hasCompletedOnboarding {
+                PhoneVerificationCard()
+            }
+
             Section {
                 VStack(spacing: 18) {
                     SignatureDialView(minutes: store.state.alarm.timeMinutes, isEnabled: store.state.alarm.isEnabled)
@@ -198,6 +213,86 @@ struct AlarmEditorView: View {
     }
 }
 
+private struct AlarmReadinessCard: View {
+    @EnvironmentObject private var store: AppStore
+
+    private var missingLabels: [String] {
+        let labels = store.activationReadiness.missingRequirements.map(\.label)
+        if labels.isEmpty && !store.state.hasCompletedOnboarding {
+            return ["Enable and schedule the alarm"]
+        }
+        if labels.isEmpty && !store.state.liveAlarmScheduled {
+            return ["Schedule the live alarm"]
+        }
+        return labels
+    }
+
+    var body: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 12) {
+                Label(
+                    "Alarm not ready: \(missingLabels.count) \(missingLabels.count == 1 ? "step" : "steps") remaining",
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .font(.headline)
+                .foregroundStyle(Color.brandOrange)
+                ForEach(missingLabels, id: \.self) { label in
+                    Label(label, systemImage: "circle")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Button(actionTitle) {
+                    if store.state.hasCompletedOnboarding && store.activationReadiness.prerequisitesReady {
+                        store.retryLiveAlarmScheduling()
+                    } else if store.state.hasCompletedOnboarding {
+                        store.restartOnboarding()
+                    } else {
+                        store.resumeOnboarding()
+                    }
+                }
+                .brandProminentButtonStyle()
+            }
+            .padding(.vertical, 6)
+        }
+    }
+
+    private var actionTitle: String {
+        if !store.state.hasCompletedOnboarding { return "Finish setup" }
+        return store.activationReadiness.prerequisitesReady ? "Schedule again" : "Repair setup"
+    }
+}
+
+private struct PhoneVerificationCard: View {
+    @EnvironmentObject private var store: AppStore
+
+    private var testIsPending: Bool {
+        guard let scheduledAt = store.state.onboardingTestScheduledAt else { return false }
+        return scheduledAt.timeIntervalSinceNow > -60 && !store.onboardingTestPassed
+    }
+
+    var body: some View {
+        Section("Verify this phone") {
+            if store.onboardingTestPassed {
+                Label("Notification tap and target dismissal verified", systemImage: "checkmark.seal.fill")
+                    .foregroundStyle(Color.brandGreen)
+            } else if testIsPending {
+                Text("A test notification is scheduled. Tap it, then dismiss the challenge with your target.")
+                    .font(.subheadline)
+                Button("Cancel verification test", role: .destructive) {
+                    store.cancelVerificationTest()
+                }
+            } else {
+                Text("Check notification delivery before bedtime. The test does not change your live alarm schedule.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Button("Verify this phone now") {
+                    store.scheduleVerificationTest()
+                }
+            }
+        }
+    }
+}
+
 struct SignatureDialView: View {
     var minutes: Int
     var isEnabled: Bool
@@ -294,7 +389,7 @@ struct AddQrSpotView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        store.track(ProductEvent(.dismissalEnrollmentCancelled, targetType: .qr, source: .app, outcome: .cancelled))
+                        store.track(ProductEvent(.dismissalEnrollmentCancelled, targetType: .qr, source: .app, outcome: .cancelled, cancellationReason: .unspecified))
                         dismiss()
                     }
                 }
@@ -404,14 +499,6 @@ struct SettingsHealthView: View {
                     store.requestNotifications()
                 }
                 HealthRow(
-                    systemImage: "checkmark.shield.fill",
-                    title: "Critical Alerts",
-                    value: store.health.criticalLabel,
-                    tint: .brandOrange
-                ) {
-                    store.requestNotifications()
-                }
-                HealthRow(
                     systemImage: "camera.fill",
                     title: "Camera",
                     value: "Requested when scanning",
@@ -419,14 +506,26 @@ struct SettingsHealthView: View {
                 ) { }
             }
 
+            Section("iPhone alarm delivery") {
+                LabeledContent("Delivery mode", value: "Standard notification")
+                Text("You must tap the notification to start continuous alarm sound and the dismissal challenge. Silent mode or Focus can silence a regular notification.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("Critical Alerts require Apple approval and still do not provide Android-style continuous alarm behavior before you open the app.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Tools") {
-                Button {
-                    store.runTestAlarm()
-                } label: {
-                    HStack(spacing: 12) {
-                        SettingsIconTile(systemImage: "flask.fill", tint: .brandGreen)
-                        Text("Test Alarm")
-                            .foregroundStyle(.primary)
+                if store.state.hasCompletedOnboarding {
+                    Button {
+                        store.scheduleVerificationTest()
+                    } label: {
+                        HStack(spacing: 12) {
+                            SettingsIconTile(systemImage: "flask.fill", tint: .brandGreen)
+                            Text("Verify This Phone")
+                                .foregroundStyle(.primary)
+                        }
                     }
                 }
                 Button {
@@ -575,6 +674,7 @@ struct RingingView: View {
                 VStack(spacing: 12) {
                     if !store.allowedObjectTargets.isEmpty {
                         Button {
+                            store.beginDismissal(targetType: .object)
                             scanner = .object
                         } label: {
                             Label("Scan Object", systemImage: "camera.viewfinder")
@@ -587,6 +687,7 @@ struct RingingView: View {
                     }
                     if !store.allowedLocations.isEmpty {
                         Button {
+                            store.beginDismissal(targetType: .qr)
                             scanner = .qr
                         } label: {
                             Label("Scan QR", systemImage: "qrcode.viewfinder")

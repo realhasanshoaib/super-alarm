@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import UIKit
 
@@ -6,54 +7,129 @@ struct AddObjectView: View {
     @EnvironmentObject private var store: AppStore
     @State private var label = "Fridge"
     @State private var isScanning = false
+    @State private var showCancellationReasons = false
+    @State private var didResolveEnrollment = false
+    let onUseQr: () -> Void
+
+    init(onUseQr: @escaping () -> Void = { }) {
+        self.onUseQr = onUseQr
+    }
 
     var body: some View {
-        if isScanning {
-            ObjectEnrollmentView(label: label)
-        } else {
-            NavigationStack {
-                Form {
-                    Section {
-                        TextField("Object name", text: $label)
-                            .textInputAutocapitalization(.words)
-                    } footer: {
-                        Text("Choose a fixed, distinctive object away from your bed, such as your fridge or coffee machine.")
-                    }
-                }
-                .navigationTitle("New Wake Object")
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") { dismiss() }
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Start Scan") {
-                            store.track(ProductEvent(
-                                .dismissalEnrollmentStarted,
-                                surface: .objectEnrollment,
-                                targetType: .object,
-                                source: store.state.hasCompletedOnboarding ? .app : .onboarding
-                            ))
-                            isScanning = true
+        ZStack {
+            if isScanning {
+                ObjectEnrollmentView(
+                    label: label,
+                    onCompleted: complete,
+                    onCancelRequested: { showCancellationReasons = true },
+                    onCameraFallback: useQrAfterCameraFailure
+                )
+            } else {
+                NavigationStack {
+                    Form {
+                        Section("What scanning looks like") {
+                            ObjectEnrollmentDemo()
+                            Text("Center one fixed object, then move slowly around it while Super Alarm saves several views on this iPhone.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
                         }
-                            .disabled(label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        Section {
+                            TextField("Object name", text: $label)
+                                .textInputAutocapitalization(.words)
+                        } footer: {
+                            Text("Choose a distinctive object away from bed, such as your fridge or coffee machine.")
+                        }
+                        Section {
+                            Button("Use a QR spot instead") { useQr(reason: .qrFallback) }
+                        }
+                    }
+                    .navigationTitle("New Wake Object")
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") { showCancellationReasons = true }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Open Camera") { startScan() }
+                                .disabled(label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
                     }
                 }
             }
         }
+        .confirmationDialog("Why are you stopping?", isPresented: $showCancellationReasons, titleVisibility: .visible) {
+            Button("Camera or scanning problem") { cancel(reason: .cameraProblem) }
+            Button("Privacy concern") { cancel(reason: .privacyConcern) }
+            Button("I’ll finish later") { cancel(reason: .finishLater) }
+            Button("Use a QR spot instead") { useQr(reason: .qrFallback) }
+            Button("Close without saying", role: .cancel) { cancel(reason: .unspecified) }
+        } message: {
+            Text("Answering is optional and helps improve setup.")
+        }
+        .onDisappear {
+            guard !didResolveEnrollment else { return }
+            trackCancellation(.unspecified)
+            didResolveEnrollment = true
+        }
+    }
+
+    private func startScan() {
+        store.track(ProductEvent(
+            .dismissalEnrollmentStarted,
+            surface: .objectEnrollment,
+            targetType: .object,
+            source: store.state.hasCompletedOnboarding ? .app : .onboarding
+        ))
+        isScanning = true
+    }
+
+    private func complete() {
+        didResolveEnrollment = true
+        dismiss()
+    }
+
+    private func cancel(reason: EnrollmentCancellationReason) {
+        trackCancellation(reason)
+        didResolveEnrollment = true
+        dismiss()
+    }
+
+    private func useQrAfterCameraFailure() {
+        useQr(reason: .cameraProblem)
+    }
+
+    private func useQr(reason: EnrollmentCancellationReason) {
+        trackCancellation(reason)
+        didResolveEnrollment = true
+        dismiss()
+        DispatchQueue.main.async { onUseQr() }
+    }
+
+    private func trackCancellation(_ reason: EnrollmentCancellationReason) {
+        store.track(ProductEvent(
+            .dismissalEnrollmentCancelled,
+            surface: .objectEnrollment,
+            targetType: .object,
+            source: store.state.hasCompletedOnboarding ? .app : .onboarding,
+            outcome: .cancelled,
+            cancellationReason: reason
+        ))
     }
 }
 
 struct ObjectEnrollmentView: View {
-    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: AppStore
     let label: String
+    let onCompleted: () -> Void
+    let onCancelRequested: () -> Void
+    let onCameraFallback: () -> Void
 
     @State private var fingerprints: [String] = []
     @State private var lastCaptureAt: TimeInterval = 0
     @State private var issue: ObjectFrameIssue?
-    @State private var error: String?
+    @State private var cameraFailure: ObjectCameraFailure?
     @State private var isComplete = false
     @State private var didTrackFailure = false
+    @State private var cameraSessionID = UUID()
 
     private let instructions = [
         "Center the object inside the ring",
@@ -68,19 +144,33 @@ struct ObjectEnrollmentView: View {
 
     var body: some View {
         ZStack {
-            ObjectCameraView(
-                mode: .enrollment,
-                onFrame: handleFrame,
-                onError: handleError
-            )
-            .ignoresSafeArea()
-            ObjectScanGuide(progress: progress, active: issue == nil && error == nil)
-            ObjectScanTopBar(title: "Scan \(label)", onClose: cancelEnrollment)
+            ObjectCameraView(mode: .enrollment, onFrame: handleFrame, onError: handleError)
+                .id(cameraSessionID)
+                .ignoresSafeArea()
+            ObjectScanGuide(progress: progress, active: issue == nil && cameraFailure == nil)
+            ObjectScanTopBar(title: "Scan \(label)", onClose: onCancelRequested)
             ObjectScanPanel(
                 title: fingerprints.isEmpty ? "Look at \(label)" : "Keep moving slowly",
-                message: error ?? issue?.rawValue ?? instructions[min(fingerprints.count, instructions.count - 1)],
+                message: cameraFailure?.message ?? issue?.rawValue ?? instructions[min(fingerprints.count, instructions.count - 1)],
                 progress: progress
             )
+            if let cameraFailure {
+                VStack(spacing: 12) {
+                    Spacer()
+                    if cameraFailure == .permissionDenied {
+                        Button("Open iOS Settings", action: store.openCameraSettings)
+                            .brandProminentButtonStyle()
+                    }
+                    Button("Try Camera Again", action: retryCamera)
+                        .brandGlassButtonStyle()
+                        .tint(.white)
+                    Button("Use a QR spot instead", action: onCameraFallback)
+                        .brandGlassButtonStyle()
+                        .tint(.white)
+                }
+                .padding(24)
+                .padding(.bottom, 130)
+            }
         }
         .background(Color.black)
     }
@@ -108,11 +198,11 @@ struct ObjectEnrollmentView: View {
         isComplete = true
         let selected = ObjectFeaturePrintCodec.selectDiverse(fingerprints, count: 5)
         store.addObjectTarget(label: label, fingerprints: selected)
-        dismiss()
+        onCompleted()
     }
 
-    private func handleError(_ message: String) {
-        error = message
+    private func handleError(_ failure: ObjectCameraFailure) {
+        cameraFailure = failure
         guard !didTrackFailure else { return }
         didTrackFailure = true
         store.track(ProductEvent(
@@ -121,19 +211,39 @@ struct ObjectEnrollmentView: View {
             targetType: .object,
             source: store.state.hasCompletedOnboarding ? .app : .onboarding,
             outcome: .failed,
-            failureCode: "camera_error"
+            failureCode: failure.rawValue
         ))
     }
 
-    private func cancelEnrollment() {
-        store.track(ProductEvent(
-            .dismissalEnrollmentCancelled,
-            surface: .objectEnrollment,
-            targetType: .object,
-            source: store.state.hasCompletedOnboarding ? .app : .onboarding,
-            outcome: .cancelled
-        ))
-        dismiss()
+    private func retryCamera() {
+        cameraFailure = nil
+        didTrackFailure = false
+        cameraSessionID = UUID()
+    }
+}
+
+private struct ObjectEnrollmentDemo: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            demoStep("1", image: "camera.viewfinder", text: "Center")
+            Image(systemName: "chevron.right").foregroundStyle(.secondary)
+            demoStep("2", image: "arrow.left.and.right", text: "Move")
+            Image(systemName: "chevron.right").foregroundStyle(.secondary)
+            demoStep("3", image: "checkmark.circle", text: "Save")
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Center the object, move around it slowly, then save")
+    }
+
+    private func demoStep(_ number: String, image: String, text: String) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: image)
+                .font(.title2)
+            Text("\(number). \(text)")
+                .font(.caption.weight(.semibold))
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -143,7 +253,7 @@ struct ObjectDismissalView: View {
     let targets: [ObjectTarget]
 
     @State private var issue: ObjectFrameIssue?
-    @State private var error: String?
+    @State private var cameraFailure: ObjectCameraFailure?
     @State private var candidate: ObjectMatchCandidate?
     @State private var matchingFrames = 0
     @State private var isComplete = false
@@ -154,7 +264,7 @@ struct ObjectDismissalView: View {
             ObjectCameraView(
                 mode: .recognition(targets),
                 onFrame: handleFrame,
-                onError: { error = $0 }
+                onError: { cameraFailure = $0 }
             )
             .ignoresSafeArea()
             ObjectScanGuide(progress: Double(matchingFrames) / 2, active: matchingFrames > 0)
@@ -169,7 +279,7 @@ struct ObjectDismissalView: View {
     }
 
     private var statusMessage: String {
-        if let error { return error }
+        if let cameraFailure { return cameraFailure.message }
         if let issue { return issue.rawValue }
         if matchingFrames > 0 { return "Hold steady for a moment" }
         return "Fill the ring, then move the phone slowly"

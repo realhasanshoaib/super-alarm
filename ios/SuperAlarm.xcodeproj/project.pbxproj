@@ -16,6 +16,7 @@
 		A10000000000000000000007 /* ObjectCamera.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000017 /* ObjectCamera.swift */; };
 		A10000000000000000000008 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000018 /* OnboardingView.swift */; };
 		A10000000000000000000009 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000019 /* Theme.swift */; };
+		A1000000000000000000000A /* Activation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001A /* Activation.swift */; };
 		B20000000000000000000001 /* Telemetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000011 /* Telemetry.swift */; };
 		B20000000000000000000021 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = B20000000000000000000041 /* PostHog */; };
 		B20000000000000000000022 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = B20000000000000000000042 /* Sentry */; };
@@ -35,6 +36,7 @@
 		A10000000000000000000017 /* ObjectCamera.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ObjectCamera.swift; path = SuperAlarm/ObjectCamera.swift; sourceTree = "<group>"; };
 		A10000000000000000000018 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OnboardingView.swift; path = SuperAlarm/OnboardingView.swift; sourceTree = "<group>"; };
 		A10000000000000000000019 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Theme.swift; path = SuperAlarm/Theme.swift; sourceTree = "<group>"; };
+		A1000000000000000000001A /* Activation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Activation.swift; path = SuperAlarm/Activation.swift; sourceTree = "<group>"; };
 		B20000000000000000000011 /* Telemetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Telemetry.swift; path = SuperAlarm/Telemetry.swift; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* SuperAlarm.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SuperAlarm.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = SuperAlarm/Images.xcassets; sourceTree = "<group>"; };
@@ -60,6 +62,7 @@
 		13B07FAE1A68108700A75B9A /* SuperAlarm */ = {
 			isa = PBXGroup;
 			children = (
+				A1000000000000000000001A /* Activation.swift */,
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
 				A10000000000000000000011 /* AppModels.swift */,
 				A10000000000000000000012 /* AppStore.swift */,
@@ -186,6 +189,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1000000000000000000000A /* Activation.swift in Sources */,
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
 				A10000000000000000000001 /* AppModels.swift in Sources */,
 				A10000000000000000000002 /* AppStore.swift in Sources */,

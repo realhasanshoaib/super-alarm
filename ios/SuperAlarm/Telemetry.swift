@@ -22,6 +22,9 @@ enum TelemetryEventName: String {
     case dismissalEnrollmentFailed = "dismissal_enrollment_failed"
     case dismissalTargetDeleted = "dismissal_target_deleted"
     case dismissalTargetAvailabilityChanged = "dismissal_target_availability_changed"
+    case dismissalTargetReady = "dismissal_target_ready"
+    case alarmPermissionsReady = "alarm_permissions_ready"
+    case phoneSetupBlockerObserved = "phone_setup_blocker_observed"
     case alarmTimeChanged = "alarm_time_changed"
     case alarmRepeatChanged = "alarm_repeat_changed"
     case alarmEnabled = "alarm_enabled"
@@ -62,6 +65,24 @@ enum DismissalTargetType: String { case object, qr }
 enum TelemetrySource: String { case app, onboarding, widget, notification, system }
 enum TelemetryOutcome: String { case success, failed, blocked, cancelled, allowed, denied }
 
+enum EnrollmentCancellationReason: String {
+    case cameraProblem = "camera_problem"
+    case privacyConcern = "privacy_concern"
+    case finishLater = "finish_later"
+    case qrFallback = "qr_fallback"
+    case unspecified = "unspecified"
+}
+
+enum PhoneSetupBlocker: String {
+    case dismissalTargetMissing = "dismissal_target_missing"
+    case repeatDayMissing = "repeat_day_missing"
+    case notificationsDenied = "notifications_denied"
+    case notificationsNotRequested = "notifications_not_requested"
+    case alertsDisabled = "alerts_disabled"
+    case soundsDisabled = "sounds_disabled"
+    case schedulingFailed = "scheduling_failed"
+}
+
 enum TelemetryFailureOperation: String {
     case alarmScheduling = "alarm_scheduling"
     case stateLoading = "state_loading"
@@ -83,6 +104,9 @@ struct ProductEvent {
     var count: Int?
     var durationSeconds: Int?
     var enabled: Bool?
+    var alarmKind: AlarmAttempt.Kind?
+    var cancellationReason: EnrollmentCancellationReason?
+    var phoneSetupBlocker: PhoneSetupBlocker?
 
     init(
         _ name: TelemetryEventName,
@@ -95,7 +119,10 @@ struct ProductEvent {
         failureCode: String? = nil,
         count: Int? = nil,
         durationSeconds: Int? = nil,
-        enabled: Bool? = nil
+        enabled: Bool? = nil,
+        alarmKind: AlarmAttempt.Kind? = nil,
+        cancellationReason: EnrollmentCancellationReason? = nil,
+        phoneSetupBlocker: PhoneSetupBlocker? = nil
     ) {
         self.name = name
         self.surface = surface
@@ -108,6 +135,9 @@ struct ProductEvent {
         self.count = count
         self.durationSeconds = durationSeconds
         self.enabled = enabled
+        self.alarmKind = alarmKind
+        self.cancellationReason = cancellationReason
+        self.phoneSetupBlocker = phoneSetupBlocker
     }
 }
 
@@ -182,6 +212,9 @@ final class LiveTelemetryClient: TelemetryClient {
         if let count = event.count { properties["count"] = min(max(count, 0), 100) }
         if let durationSeconds = event.durationSeconds { properties["duration_seconds"] = min(max(durationSeconds, 0), 86_400) }
         if let enabled = event.enabled { properties["enabled"] = enabled }
+        if let alarmKind = event.alarmKind { properties["alarm_kind"] = alarmKind.rawValue }
+        if let cancellationReason = event.cancellationReason { properties["cancellation_reason"] = cancellationReason.rawValue }
+        if let phoneSetupBlocker = event.phoneSetupBlocker { properties["phone_setup_blocker"] = phoneSetupBlocker.rawValue }
         PostHogSDK.shared.capture(event.name.rawValue, properties: properties)
         let breadcrumb = Breadcrumb(level: .info, category: "product")
         breadcrumb.message = event.name.rawValue

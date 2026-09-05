@@ -34,7 +34,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         self.store = store
         UNUserNotificationCenter.current().delegate = self
         NotificationLaunchBridge.shared.onLaunch = { [weak store] identifier in
-            let kind: AlarmAttempt.Kind = identifier == AlarmNotificationService.onboardingTestIdentifier ? .test : .live
+            let kind = AlarmNotificationService.alarmKind(for: identifier)
             store?.openRinging(kind: kind, notificationIdentifier: identifier)
         }
     }
@@ -53,6 +53,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
+        let identifier = notification.request.identifier
+        let kind = AlarmNotificationService.alarmKind(for: identifier)
+        Task { @MainActor [weak store] in
+            store?.recordAlarmNotificationFired(kind: kind, identifier: identifier)
+        }
         if #available(iOS 14.0, *) {
             completionHandler([.banner, .list, .sound])
         } else {

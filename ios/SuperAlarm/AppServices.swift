@@ -33,6 +33,10 @@ struct JsonStateStore {
 struct AlarmNotificationService {
     static let onboardingTestIdentifier = "superalarm-ios-onboarding-test"
 
+    static func alarmKind(for identifier: String) -> AlarmAttempt.Kind {
+        identifier == onboardingTestIdentifier ? .test : .live
+    }
+
     func requestAuthorization(includeCritical: Bool) async throws {
         var options: UNAuthorizationOptions = [.alert, .sound, .badge]
         if includeCritical { options.insert(.criticalAlert) }
@@ -50,16 +54,21 @@ struct AlarmNotificationService {
         )
     }
 
-    func cancelAll() async {
+    func cancelLiveAlarm() async {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: scheduledIdentifiers)
+    }
+
+    func cancelVerificationTest() async {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [Self.onboardingTestIdentifier])
     }
 
     func schedule(alarm: AlarmConfig, health: NotificationHealth) async throws {
         let center = UNUserNotificationCenter.current()
         for index in alarm.repeatDays.indices where alarm.repeatDays[index] {
+            try Task.checkCancellation()
             let content = UNMutableNotificationContent()
             content.title = alarm.label
-            content.body = "Scan an allowed object or QR spot to dismiss."
+            content.body = "Tap to start continuous sound, then scan your target to dismiss."
             content.categoryIdentifier = "ALARM"
             content.userInfo = ["kind": "live"]
             if health.hasCriticalEntitlement && health.criticalSetting == .enabled {
@@ -81,10 +90,11 @@ struct AlarmNotificationService {
                 trigger: trigger
             )
             try await center.add(request)
+            try Task.checkCancellation()
         }
     }
 
-    func scheduleOnboardingTest(after delay: TimeInterval, health: NotificationHealth) async throws -> Date {
+    func scheduleVerificationTest(after delay: TimeInterval, health: NotificationHealth) async throws -> Date {
         let content = UNMutableNotificationContent()
         content.title = "Super Alarm wake-up test"
         content.body = "Tap to open the alarm, then dismiss it with your enrolled target."
