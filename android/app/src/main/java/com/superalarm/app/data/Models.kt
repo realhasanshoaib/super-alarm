@@ -133,8 +133,9 @@ fun AppState.activationReadiness(capabilities: ReliabilityChecklistState): Activ
 
 fun AppState.resumeOnboardingStep(capabilities: ReliabilityChecklistState): Int =
   when (onboardingStep) {
-    OnboardingSteps.Welcome, OnboardingSteps.DismissalMethod ->
+    OnboardingSteps.Welcome ->
       if (hasValidDismissalTarget()) OnboardingSteps.Alarm else OnboardingSteps.DismissalMethod
+    OnboardingSteps.DismissalMethod -> OnboardingSteps.DismissalMethod
     OnboardingSteps.Alarm ->
       if (hasValidDismissalTarget()) OnboardingSteps.Alarm else OnboardingSteps.DismissalMethod
     else -> when (activationReadiness(capabilities).missingSteps.firstOrNull()) {

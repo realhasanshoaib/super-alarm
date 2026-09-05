@@ -59,7 +59,9 @@ struct AlarmNotificationService {
     }
 
     func cancelVerificationTest() async {
-        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [Self.onboardingTestIdentifier])
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [Self.onboardingTestIdentifier])
+        center.removeDeliveredNotifications(withIdentifiers: [Self.onboardingTestIdentifier])
     }
 
     func schedule(alarm: AlarmConfig, health: NotificationHealth) async throws {

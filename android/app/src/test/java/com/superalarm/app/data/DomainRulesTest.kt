@@ -61,6 +61,21 @@ class DomainRulesTest {
   }
 
   @Test
+  fun backToDismissalSelectionPreservesTheChosenStepWithAnExistingTarget() {
+    val target = QrLocation(id = "mirror", label = "Mirror")
+    val state = AppState(
+      alarm = AlarmConfig(allowedLocationIds = listOf(target.id)),
+      qrLocations = listOf(target),
+      onboardingStep = OnboardingSteps.DismissalMethod,
+    )
+
+    assertEquals(
+      OnboardingSteps.DismissalMethod,
+      state.resumeOnboardingStep(ReliabilityChecklistState()),
+    )
+  }
+
+  @Test
   fun readinessRejectsDanglingTargetsAndNamesMissingPhoneSetup() {
     val state = AppState(alarm = AlarmConfig(allowedLocationIds = listOf("deleted")))
     val readiness = state.activationReadiness(ReliabilityChecklistState(notificationsGranted = false))

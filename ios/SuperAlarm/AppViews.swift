@@ -748,10 +748,12 @@ struct RingingView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Back to alarm") { scanner = nil }
+                        Button("Back") { scanner = nil }
+                            .accessibilityLabel("Back to alarm")
                     }
                     ToolbarItem(placement: .primaryAction) {
-                        Button("Camera settings") { store.openCameraSettings() }
+                        Button("Settings") { store.openCameraSettings() }
+                            .accessibilityLabel("Open camera settings")
                     }
                 }
             }
