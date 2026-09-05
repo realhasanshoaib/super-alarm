@@ -66,17 +66,6 @@ struct AlarmEditorView: View {
                 AlarmReadinessCard()
             }
 
-            Section("iPhone delivery") {
-                Label("Standard notification", systemImage: "hand.tap")
-                Text("Tap the notification to start continuous sound and the dismissal challenge. Silent mode or Focus can silence the regular notification.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            if store.state.hasCompletedOnboarding {
-                PhoneVerificationCard()
-            }
-
             Section {
                 VStack(spacing: 18) {
                     SignatureDialView(minutes: store.state.alarm.timeMinutes, isEnabled: store.state.alarm.isEnabled)
@@ -93,7 +82,7 @@ struct AlarmEditorView: View {
 
             Section {
                 Toggle(isOn: Binding(get: { store.state.alarm.isEnabled }, set: store.setEnabled)) {
-                    Label("Enabled", systemImage: "bell")
+                    Label("Alarm", systemImage: "bell")
                 }
                 DatePicker(
                     "Time",
@@ -104,6 +93,17 @@ struct AlarmEditorView: View {
                 Toggle(isOn: Binding(get: { store.state.alarm.vibrates }, set: store.setVibrates)) {
                     Label("In-app vibration", systemImage: "iphone.radiowaves.left.and.right")
                 }
+            }
+
+            Section("How this alarm works") {
+                Label("Tap the notification to start alarm sound", systemImage: "hand.tap")
+                Text("Standard notifications can be silenced by Silent mode or Focus. Open the notification to start continuous sound and the scan challenge.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if store.state.hasCompletedOnboarding {
+                PhoneVerificationCard()
             }
 
             Section("Repeat") {
@@ -217,7 +217,11 @@ private struct AlarmReadinessCard: View {
     @EnvironmentObject private var store: AppStore
 
     private var missingLabels: [String] {
-        let labels = store.activationReadiness.missingRequirements.map(\.label)
+        var labels = store.activationReadiness.missingRequirements.map(\.label)
+        if !store.state.hasCompletedOnboarding && store.activationReadiness.hasDismissalTarget &&
+            [.welcome, .dismissalMethod, .alarm].contains(store.state.onboardingStep) {
+            labels.insert("Confirm alarm time", at: 0)
+        }
         if labels.isEmpty && !store.state.hasCompletedOnboarding {
             return ["Enable and schedule the alarm"]
         }
@@ -351,14 +355,16 @@ struct WeekdayPickerView: View {
     private let labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
     var body: some View {
-        HStack(spacing: 8) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 64), spacing: 8)], spacing: 8) {
             ForEach(labels.indices, id: \.self) { index in
                 Button {
                     onToggle(index)
                 } label: {
                     Text(labels[index])
                         .font(.caption.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 32)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .frame(maxWidth: .infinity, minHeight: 44)
                 }
                 .buttonStyle(.bordered)
                 .tint(selected.indices.contains(index) && selected[index] ? .accentColor : .secondary)
@@ -648,7 +654,9 @@ private enum RingingScanner: String, Identifiable {
 
 struct RingingView: View {
     @EnvironmentObject private var store: AppStore
+    @Environment(\.scenePhase) private var scenePhase
     @State private var scanner: RingingScanner?
+    @State private var scannerSessionID = UUID()
     @State private var scanMessage: String?
 
     var body: some View {
@@ -693,9 +701,14 @@ struct RingingView: View {
                             Label("Scan QR", systemImage: "qrcode.viewfinder")
                                 .frame(maxWidth: .infinity, minHeight: 54)
                         }
-                        .brandGlassButtonStyle()
+                        .brandProminentButtonStyle()
                         .controlSize(.large)
-                        .tint(.white)
+                        .tint(.brandSky)
+                    }
+                    if store.state.runtime?.kind == .test {
+                        Button("Stop test") { store.stopVerificationRinging() }
+                            .foregroundStyle(.white)
+                            .padding(.vertical, 8)
                     }
                 }
                 .padding(.top, 8)
@@ -714,20 +727,38 @@ struct RingingView: View {
             .padding(24)
         }
         .sheet(item: $scanner) { activeScanner in
-            switch activeScanner {
-            case .object:
-                ObjectDismissalView(targets: store.allowedObjectTargets)
-            case .qr:
-                QrScannerView { payload in
-                    switch store.handleScan(payload) {
-                    case .valid:
-                        scanner = nil
-                    case .invalid(let message):
-                        scanMessage = message
+            NavigationStack {
+                Group {
+                    switch activeScanner {
+                    case .object:
+                        ObjectDismissalView(targets: store.allowedObjectTargets)
+                    case .qr:
+                        QrScannerView { payload in
+                            switch store.handleScan(payload) {
+                            case .valid:
+                                scanner = nil
+                            case .invalid(let message):
+                                scanMessage = message
+                            }
+                        }
                     }
                 }
-                .ignoresSafeArea()
+                .id(scannerSessionID)
+                .navigationTitle(activeScanner == .qr ? "Scan QR" : "Scan object")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Back to alarm") { scanner = nil }
+                    }
+                    ToolbarItem(placement: .primaryAction) {
+                        Button("Camera settings") { store.openCameraSettings() }
+                    }
+                }
             }
+            .preferredColorScheme(.dark)
+        }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active && scanner != nil { scannerSessionID = UUID() }
         }
         .overlay {
             if store.dismissedAttempt != nil {

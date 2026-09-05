@@ -176,6 +176,10 @@ class SuperAlarmStore(
       update { it.copy(alarm = current.alarm) }
       return false
     }
+    if (enabled && !current.onboardingComplete) {
+      update { it.copy(onboardingComplete = true, onboardingDismissed = true, onboardingStep = OnboardingSteps.Ready) }
+      telemetry.capture(ProductEvent(TelemetryEventName.OnboardingCompleted, source = TelemetrySource.App))
+    }
     telemetry.capture(ProductEvent(
       if (enabled) TelemetryEventName.AlarmEnabled else TelemetryEventName.AlarmDisabled,
       source = TelemetrySource.App,
@@ -441,6 +445,14 @@ class SuperAlarmStore(
     return true
   }
 
+  fun cancelPhoneVerification() {
+    val current = _state.value
+    val scheduledAt = current.onboardingTestScheduledAtMillis ?: return
+    AlarmScheduler.cancelTest(context, current.alarm.toStoredConfig(), scheduledAt)
+    update { it.copy(onboardingTestScheduledAtMillis = null) }
+    telemetry.capture(ProductEvent(TelemetryEventName.WakeUpTestCancelled, source = TelemetrySource.App, outcome = TelemetryOutcome.Cancelled, alarmKind = AlarmKind.Test))
+  }
+
   fun dismissWithPayload(payload: String): Boolean {
     val state = _state.value
     val runtime = state.runtime ?: return false
@@ -491,6 +503,7 @@ class SuperAlarmStore(
     val stoppedAt = Instant.now().toString()
     context.stopService(Intent(context, AlarmRingingService::class.java))
     AlarmStorage.clearPendingLaunch(context)
+    telemetry.capture(ProductEvent(TelemetryEventName.WakeUpTestCancelled, source = TelemetrySource.App, outcome = TelemetryOutcome.Cancelled, alarmKind = AlarmKind.Test))
     update { state ->
       state.copy(
         runtime = null,
@@ -517,11 +530,14 @@ class SuperAlarmStore(
     )
   }
 
-  fun capturePhoneSetupReadiness(source: TelemetrySource): Boolean {
+  fun hasScheduledLiveAlarm(): Boolean =
+    _state.value.alarm.enabled && AlarmStorage.getScheduledTriggerAt(context) > System.currentTimeMillis()
+
+  fun capturePhoneSetupReadiness(source: TelemetrySource, targetBecameReady: Boolean = false): Boolean {
     val blockers = phoneSetupBlockers(capabilities())
     val blockerCodes = blockers.mapTo(mutableSetOf()) { it.first }
     if (blockers.isEmpty()) {
-      if (lastPhoneSetupBlockers != emptySet<TelemetryFailureCode>()) {
+      if (targetBecameReady || lastPhoneSetupBlockers != emptySet<TelemetryFailureCode>()) {
         telemetry.capture(ProductEvent(
           TelemetryEventName.AlarmPermissionsReady,
           source = source,
@@ -562,7 +578,9 @@ class SuperAlarmStore(
 
   fun openNotificationSettings() {
     captureSettingsOpened(TelemetryPermissionKind.Notifications)
-    val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+    val appNotificationsAllowed = notificationPermissionGranted() &&
+      NotificationManagerCompat.from(context).areNotificationsEnabled()
+    val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && appNotificationsAllowed) {
       Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
         putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
         putExtra(Settings.EXTRA_CHANNEL_ID, AlarmConstants.NOTIFICATION_CHANNEL_ID)
@@ -572,7 +590,7 @@ class SuperAlarmStore(
         putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
       }
     }
-    openSettings(intent)
+    if (!tryOpenSettings(intent)) openAppDetailsSettings()
   }
 
   fun openDeviceSupportSettings() {
@@ -789,6 +807,7 @@ class SuperAlarmStore(
         source = source,
         outcome = TelemetryOutcome.Success,
       ))
+      capturePhoneSetupReadiness(source, targetBecameReady = true)
     }
     lastTargetReady = ready
   }

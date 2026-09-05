@@ -42,6 +42,12 @@ struct ActivationReadiness: Equatable {
         if !hasRepeatDay { return .alarm }
         return .phoneSetup
     }
+
+    func resumeStep(preserving savedStep: OnboardingStep) -> OnboardingStep {
+        guard hasDismissalTarget else { return .dismissalMethod }
+        if [.welcome, .dismissalMethod, .alarm].contains(savedStep) { return .alarm }
+        return resumeStep
+    }
 }
 
 enum ActivationStateMigration {
@@ -63,10 +69,11 @@ enum ActivationStateMigration {
 
     private static func legacyResumeStep(for state: SuperAlarmState) -> OnboardingStep {
         let hasQrTarget = state.qrLocations.contains { state.alarm.allowedLocationIds.contains($0.id) }
-        let hasObjectTarget = state.objectTargets.contains { state.alarm.allowedObjectTargetIds.contains($0.id) }
+        let hasObjectTarget = state.objectTargets.contains { state.alarm.allowedObjectTargetIds.contains($0.id) && !$0.fingerprints.isEmpty }
         let hasTarget = hasQrTarget || hasObjectTarget
         if !hasTarget { return .dismissalMethod }
         if !state.alarm.repeatDays.contains(true) { return .alarm }
+        if [.welcome, .dismissalMethod, .alarm].contains(state.onboardingStep) { return .alarm }
         return .phoneSetup
     }
 }

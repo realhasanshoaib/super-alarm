@@ -13,8 +13,8 @@ The desired state is a privacy-safe, observable 1.5.0 release. PostHog Cloud US 
 - Use PostHog Cloud US and Sentry Cloud on their free plans unless observed volume requires a later plan decision.
 - Release Android directly to 100% of production users with no staged rollout. Update the existing `alpha`, `beta`, and `internal` tracks to the same version code in the same coherent release.
 - Submit iOS directly for App Review with automatic release at approval. Publish the same build to existing internal and external TestFlight groups where available.
-- Add **Skip** to every onboarding step on Android and iOS. Skipping persists onboarding completion, opens the main alarm surface, and does not silently grant permissions or create dismissal targets.
-- Keep onboarding recoverable from the existing Health or Settings surface with a **Run setup again** action.
+- Offer **Finish later** on every initial setup step. It preserves progress and opens home without marking an incomplete alarm ready.
+- Keep unfinished setup recoverable through a persistent home readiness card and one resume action. Health or Settings also provides setup access.
 - Refresh real store screenshots only when the live media does not show the shipped object-detection flow. Never create mock product states.
 - Ship the native apps as version 1.5.0. Use Android version code 14 because the pre-release code 13 artifact exposed a Sentry startup-order fault during final device QA. Use iOS build 12 unless a failed or cancelled store upload consumes it before the final archive is produced.
 
@@ -43,11 +43,12 @@ The desired state is a privacy-safe, observable 1.5.0 release. PostHog Cloud US 
 
 - Every onboarding page scrolls on the screenshot’s short Android viewport, the smallest supported iPhone viewport, landscape where supported, and large accessibility text.
 - Primary actions remain reachable without relying on clipped content or a fixed-height weighted spacer.
-- **Skip** is visible and accessible from every step. It opens a confirmation sheet that explains that alarm-critical permissions and a dismissal target may still need setup.
-- Confirming Skip records `onboarding_skipped` with only the current step and platform, completes onboarding, and opens the main screen.
-- Cancelling Skip leaves onboarding unchanged.
-- **Run setup again** resets only onboarding progress. It does not delete alarms, dismissal targets, or permission state.
-- Android and iOS have targeted tests for completing, skipping, cancelling Skip, reopening setup, and preserving user data.
+- **Finish later** is visible and accessible from every initial step. It opens home, preserves progress, and records the existing `onboarding_skipped` event for telemetry compatibility without marking setup complete.
+- A persistent home card explains the missing requirements and resumes at the next unfinished step, including for legacy users who previously skipped.
+- Initial setup contains three steps: dismissal target, alarm time, and essential phone permissions. Optional reliability settings and the wake-up test are outside the activation gate.
+- Completing setup requires valid target selection, repeat days, essential permissions, and successful live scheduling. A scheduling failure remains actionable instead of showing readiness.
+- Reopening setup does not delete alarms, dismissal targets, or permission state. Deliberately disabling a configured alarm does not make a completed user a new onboarding user.
+- Android and iOS have targeted checks for completion, deferred setup, legacy recovery, permission loss, schedule failure, and keeping test cancellation separate from live scheduling.
 
 ### Marketing, privacy, and stores
 
@@ -56,7 +57,7 @@ The desired state is a privacy-safe, observable 1.5.0 release. PostHog Cloud US 
 - Site and store copy describe on-device object recognition accurately and avoid guarantees that the alarm cannot miss.
 - The privacy policy names PostHog US and Sentry, the categories they receive, their purposes, retention or control paths, and the in-app analytics opt-out. It preserves the separate statement that camera frames, visual fingerprints, QR payloads, labels, and alarm configuration stay on device unless the user exports diagnostics.
 - Google Play Data Safety and Apple App Privacy answers match the compiled SDKs and observed network traffic before submission.
-- Store release notes describe telemetry controls, onboarding scrolling and Skip, and the current object-detection flow.
+- Store copy describes three-step setup, saved progress, optional verification, and platform-specific delivery accurately. iOS copy states that standard notifications require a tap before continuous in-app sound starts.
 - Any refreshed screenshots come from the final 1.5.0 build and pass platform dimension checks.
 - The deployed Worker returns HTTP 200 for `/`, `/privacy`, and `/support`; its public metadata, canonical tags, store links, and telemetry requests are verified from the live URL.
 
@@ -88,6 +89,7 @@ Every event includes `platform`, `app_version`, `build_number`, `environment`, a
 | Lifecycle and navigation | `app_opened`, `app_backgrounded`, `surface_viewed` | `surface`, `launch_source`, `is_first_launch` |
 | Onboarding | `onboarding_started`, `onboarding_step_viewed`, `onboarding_step_completed`, `onboarding_skip_opened`, `onboarding_skip_cancelled`, `onboarding_skipped`, `onboarding_completed`, `onboarding_restarted` | `step`, `completion_path`, readiness booleans |
 | Permissions | `permission_action_selected`, `permission_result_observed`, `device_settings_opened` | `permission_kind`, `result`, `manufacturer_family` only when needed for OEM reliability |
+| Activation readiness | `dismissal_target_ready`, `alarm_permissions_ready`, `phone_setup_blocked` | `source`, `outcome`, bounded `failure_code`, `permission_kind` when relevant |
 | Dismissal setup | `dismissal_enrollment_started`, `dismissal_enrollment_completed`, `dismissal_enrollment_cancelled`, `dismissal_enrollment_failed`, `dismissal_target_deleted` | `target_type`, duration, bounded capture or attempt count, failure code |
 | Alarm setup | `alarm_time_changed`, `alarm_repeat_changed`, `alarm_enabled`, `alarm_disabled`, `alarm_scheduled`, `alarm_schedule_failed` | repeat-day count, time-of-day bucket, `target_type`, `source`, failure code |
 | Delivery | `alarm_fired`, `ringing_started`, `backup_ring_fired`, `dismissal_started`, `dismissal_attempted`, `alarm_dismissed`, `alarm_missed`, `ringing_stopped_unexpectedly` | scheduled-lateness bucket, `target_type`, bounded attempts, duration, system reason code |
@@ -96,11 +98,11 @@ Every event includes `platform`, `app_version`, `build_number`, `environment`, a
 | Widget | `widget_viewed`, `widget_action_selected`, `widget_action_completed`, `widget_action_failed` | widget family or size, action, duration preset, failure code |
 | Marketing | `marketing_page_viewed`, `store_link_clicked`, `support_email_clicked` | route, platform target, placement, referrer host without query data |
 
-`surface` values are finite enums owned by each platform adapter and mapped to shared names. Failure codes are finite domain enums. Do not send exception messages or arbitrary strings to PostHog.
+`surface` values are finite enums owned by each platform adapter and mapped to shared names. Every scheduling, fired, ringing, dismissal, and wake-up-test event carries `alarm_kind` (`live` or `test`). Scheduling success means OS acceptance, not that the notification was heard. iOS enrollment cancellation also carries bounded `cancellation_reason`, including `unspecified` when no reason was given. Failure codes are finite domain categories. Do not send exception messages or arbitrary strings to PostHog.
 
 ## Dashboards and alerting
 
-1. The activation funnel measures `app_opened` on first launch, target enrollment, an enabled alarm, permission readiness, a passed wake-up test, and onboarding completion or Skip.
+1. The activation funnel measures first `app_opened`, `dismissal_target_ready`, `alarm_permissions_ready`, live `alarm_scheduled`, live `ringing_started`, and live `alarm_dismissed`. Tests are separate, not activation gates. Cohort age, platform boundaries, deduplication, and observation windows are defined in [Activation measurement](activation-measurement.md).
 2. The alarm-delivery funnel measures scheduled, fired, ringing, dismissal started, and dismissed. It segments by platform, release, dismissal type, and readiness state.
 3. The dismissal dashboard measures QR versus object completion, bounded mismatch attempts, time to dismiss, cancellation, and failure code.
 4. Retention uses anonymous distinct IDs for D1, D7, and D30 return and alarm-use cohorts. It does not create PostHog person profiles.
@@ -145,7 +147,7 @@ All adapters apply the same denylist before vendor dispatch: `label`, `name`, `p
 
 ## Onboarding behavior
 
-The onboarding state machine remains `welcome → dismissal method → alarm → phone setup → wake-up test → ready`. Skip is an exit from every state to the main app. **Run setup again** enters at `welcome` without deleting current alarm or target data. Completing setup through the normal path retains the current readiness test requirements.
+The initial state machine is `dismissal target → alarm time → essential phone permissions → live schedule accepted`. **Finish later** exits to home with saved progress; the readiness card resumes incomplete setup. Legacy persisted step identifiers remain compatible. The wake-up test is an optional post-activation path that cannot cancel or replace the live schedule. Optional battery and manufacturer recommendations belong in the contextual reliability checklist, not the initial setup gate.
 
 Android replaces the single `LazyColumn` item containing a weighted `Column` with a real scrollable content structure. The page uses a minimum viewport height only for short pages; long content determines its own height, and the primary action follows the content without a weighted spacer that can consume or confuse unbounded constraints.
 

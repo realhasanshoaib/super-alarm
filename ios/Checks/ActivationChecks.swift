@@ -77,5 +77,8 @@ enum ActivationChecks {
             notificationSoundsEnabled: true
         )
         precondition(ready.prerequisitesReady)
+        precondition(ready.resumeStep(preserving: .alarm) == .alarm)
+        precondition(ready.resumeStep(preserving: .phoneSetup) == .phoneSetup)
+        precondition(missingTarget.resumeStep(preserving: .alarm) == .dismissalMethod)
     }
 }

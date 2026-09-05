@@ -4,6 +4,10 @@ Native iOS and Android alarm app. Android is Kotlin/Jetpack Compose with a nativ
 
 Object enrollment uses a short guided sweep that captures varied views automatically. Android stores quantized MobileNetV3 embeddings; iOS stores revision-pinned Apple Vision feature prints. Neither platform uploads scan data, and QR spots remain available as a separate dismissal method.
 
+Initial setup has three steps: select a dismissal target, choose an alarm time, and allow essential phone permissions. Finish later saves progress and opens a home readiness card. Completing setup requires successful OS scheduling; the wake-up test is optional and cannot cancel the live schedule. On iOS, users must tap a standard notification before continuous in-app sound starts. Silent mode and Focus can silence that notification, so this build does not replace the iPhone Clock alarm.
+
+The production cohort and event definitions are in [Activation measurement](docs/activation-measurement.md). Development builds and verification tests are excluded from live activation conversion.
+
 Android also keeps one small representative object thumbnail in private app storage so the Dismiss tab can show what was enrolled. The thumbnail stays on the device and is excluded from diagnostics exports.
 
 ## Native Development

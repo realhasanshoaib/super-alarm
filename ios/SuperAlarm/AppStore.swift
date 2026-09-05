@@ -36,11 +36,12 @@ final class AppStore: ObservableObject {
     }
 
     var allowedObjectTargets: [ObjectTarget] {
-        state.objectTargets.filter { state.alarm.allowedObjectTargetIds.contains($0.id) }
+        state.objectTargets.filter { state.alarm.allowedObjectTargetIds.contains($0.id) && !$0.fingerprints.isEmpty }
     }
 
     var nextAlarmSummary: String {
         guard state.alarm.isEnabled else { return "Alarm off" }
+        guard activationReadiness.prerequisitesReady else { return "Alarm not ready" }
         guard state.liveAlarmScheduled else { return "Alarm not scheduled" }
         guard let next = notifications.nextTriggerDate(for: state.alarm) else { return "No repeat day selected" }
         let interval = max(0, Int(next.timeIntervalSince(Date()) / 60))
@@ -73,7 +74,7 @@ final class AppStore: ObservableObject {
     }
 
     var shouldShowReadinessCard: Bool {
-        !state.hasCompletedOnboarding || (state.alarm.isEnabled && !state.liveAlarmScheduled)
+        !state.hasCompletedOnboarding || (state.alarm.isEnabled && (!state.liveAlarmScheduled || !activationReadiness.prerequisitesReady))
     }
 
     func start() {
@@ -120,7 +121,7 @@ final class AppStore: ObservableObject {
         state.liveAlarmScheduled = false
         log(.info, enabled ? "Alarm enabled" : "Alarm disabled")
         haptics.selection()
-        persistAndReschedule()
+        persistAndReschedule(source: .app)
         telemetry.capture(ProductEvent(enabled ? .alarmEnabled : .alarmDisabled, source: .app, alarmKind: .live))
     }
 
@@ -174,7 +175,8 @@ final class AppStore: ObservableObject {
             let schedulingTask = enqueueLiveAlarmReconciliation(source: .onboarding)
             let activationGeneration = schedulingGeneration
             let scheduled = await schedulingTask.value
-            guard scheduled else {
+            guard scheduled, schedulingGeneration == activationGeneration,
+                  state.alarm.isEnabled, state.liveAlarmScheduled else {
                 if schedulingGeneration == activationGeneration {
                     state.alarm.isEnabled = false
                     state.liveAlarmScheduled = false
@@ -203,8 +205,9 @@ final class AppStore: ObservableObject {
     }
 
     func resumeOnboarding() {
+        state.hasCompletedOnboarding = false
         state.hasDeferredOnboarding = false
-        state.onboardingStep = activationReadiness.resumeStep
+        state.onboardingStep = activationReadiness.resumeStep(preserving: state.onboardingStep)
         save()
         telemetry.capture(ProductEvent(.onboardingRestarted, onboardingStep: state.onboardingStep.rawValue, source: .app))
     }
@@ -361,7 +364,7 @@ final class AppStore: ObservableObject {
     }
 
     func openAppSettings() {
-        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        guard let url = URL(string: UIApplication.openNotificationSettingsURLString) else { return }
         telemetry.capture(ProductEvent(.deviceSettingsOpened, source: state.hasCompletedOnboarding ? .app : .onboarding, permissionKind: "notifications"))
         UIApplication.shared.open(url)
     }
@@ -380,6 +383,11 @@ final class AppStore: ObservableObject {
     func scheduleVerificationTest() {
         Task {
             await refreshHealth()
+            guard hasDismissalTarget else {
+                alertMessage = "Choose a dismissal target before verifying this phone."
+                telemetry.capture(ProductEvent(.wakeUpTestFailed, source: .app, outcome: .blocked, failureCode: "missing_target", alarmKind: .test))
+                return
+            }
             guard [.authorized, .provisional, .ephemeral].contains(health.authorizationStatus) else {
                 alertMessage = "Allow notifications before running the wake-up test."
                 telemetry.capture(ProductEvent(.wakeUpTestFailed, source: .app, outcome: .blocked, failureCode: "notification_blocked", alarmKind: .test))
@@ -401,6 +409,7 @@ final class AppStore: ObservableObject {
                     self.recentFiredNotifications.removeValue(forKey: AlarmNotificationService.onboardingTestIdentifier)
                     self.state.onboardingTestScheduledAt = triggerAt
                     self.save()
+                    self.telemetry.capture(ProductEvent(.alarmScheduled, source: .app, outcome: .success, alarmKind: .test))
                     self.telemetry.capture(ProductEvent(.wakeUpTestScheduled, source: .app, alarmKind: .test))
                 }
             } catch {
@@ -419,6 +428,7 @@ final class AppStore: ObservableObject {
             await notifications.cancelVerificationTest()
             state.onboardingTestScheduledAt = nil
             save()
+            telemetry.capture(ProductEvent(.wakeUpTestCancelled, source: .app, outcome: .cancelled, alarmKind: .test))
         }
     }
 
@@ -547,6 +557,16 @@ final class AppStore: ObservableObject {
         telemetry.capture(ProductEvent(.dismissalStarted, surface: .ringing, targetType: targetType, source: .app, alarmKind: alarmKind))
     }
 
+    func stopVerificationRinging() {
+        guard let runtime = state.runtime, runtime.kind == .test else { return }
+        if let index = state.attempts.firstIndex(where: { $0.id == runtime.attemptId }) {
+            state.attempts[index].result = .interrupted
+        }
+        state.onboardingTestScheduledAt = nil
+        telemetry.capture(ProductEvent(.wakeUpTestCancelled, source: .app, outcome: .cancelled, alarmKind: .test))
+        closeRinging()
+    }
+
     func closeRinging() {
         audio.stop()
         isRingingPresented = false
@@ -594,10 +614,10 @@ final class AppStore: ObservableObject {
         telemetry.capture(ProductEvent(.ringingStoppedUnexpectedly, source: .system, alarmKind: runtime.kind))
     }
 
-    private func persistAndReschedule() {
+    private func persistAndReschedule(source: TelemetrySource = .system) {
         state.liveAlarmScheduled = false
         save()
-        _ = enqueueLiveAlarmReconciliation(source: .system)
+        _ = enqueueLiveAlarmReconciliation(source: source)
     }
 
     private func enqueueLiveAlarmReconciliation(source: TelemetrySource) -> Task<Bool, Never> {
@@ -638,6 +658,12 @@ final class AppStore: ObservableObject {
                 return false
             }
             state.liveAlarmScheduled = true
+            if source == .app && state.hasDeferredOnboarding && !state.hasCompletedOnboarding {
+                state.hasCompletedOnboarding = true
+                state.hasDeferredOnboarding = false
+                state.onboardingStep = .ready
+                telemetry.capture(ProductEvent(.onboardingCompleted, source: .app))
+            }
             log(.info, "Scheduled iOS local alarm notifications")
             save()
             telemetry.capture(ProductEvent(.alarmScheduled, source: source, outcome: .success, alarmKind: .live))
@@ -661,7 +687,7 @@ final class AppStore: ObservableObject {
             telemetry.capture(ProductEvent(.dismissalTargetReady, source: state.hasCompletedOnboarding ? .app : .onboarding))
         }
         let permissionsReady = readiness.notificationsAuthorized && readiness.notificationAlertsEnabled && readiness.notificationSoundsEnabled
-        if permissionsReady && !lastPermissionsReady {
+        if permissionsReady && (!lastPermissionsReady || (readiness.hasDismissalTarget && !lastTargetReady)) {
             telemetry.capture(ProductEvent(.alarmPermissionsReady, source: state.hasCompletedOnboarding ? .app : .onboarding))
         }
         lastTargetReady = readiness.hasDismissalTarget

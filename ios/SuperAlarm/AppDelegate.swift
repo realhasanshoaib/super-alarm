@@ -11,6 +11,7 @@ import VisionKit
 struct SuperAlarmApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var store = AppStore()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -22,6 +23,9 @@ struct SuperAlarmApp: App {
                 }
                 .onOpenURL { url in
                     store.handleDeepLink(url)
+                }
+                .onChange(of: scenePhase) { phase in
+                    if phase == .active { Task { await store.refreshHealth() } }
                 }
         }
     }

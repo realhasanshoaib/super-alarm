@@ -54,6 +54,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -74,11 +75,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.material3.Card
 import com.superalarm.app.BuildConfig
 import com.superalarm.app.data.AlarmConfig
 import com.superalarm.app.data.AlarmAttempt
 import com.superalarm.app.data.AppState
 import com.superalarm.app.data.ActivationStep
+import com.superalarm.app.data.OnboardingSteps
 import com.superalarm.app.data.DeviceSupport
 import com.superalarm.app.data.ReliabilityChecklistState
 import com.superalarm.app.data.activationReadiness
@@ -306,6 +312,18 @@ private fun AlarmScreen(
 ) {
   var showTimeEditor by remember { mutableStateOf(false) }
   var clock by remember { mutableStateOf(currentClockSnapshot()) }
+  var capabilityRevision by remember { mutableStateOf(0) }
+  val lifecycleOwner = LocalLifecycleOwner.current
+  DisposableEffect(lifecycleOwner, store) {
+    val observer = LifecycleEventObserver { _, event ->
+      if (event == Lifecycle.Event.ON_RESUME) capabilityRevision++
+    }
+    lifecycleOwner.lifecycle.addObserver(observer)
+    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+  }
+  LaunchedEffect(capabilityRevision) {
+    store.capturePhoneSetupReadiness(TelemetrySource.App)
+  }
 
   LaunchedEffect(Unit) {
     while (true) {
@@ -321,10 +339,11 @@ private fun AlarmScreen(
     repeatDays = state.alarm.repeatDays,
   )
   val waitLabel = formatDuration(waitMinutes)
-  val capabilities = store.capabilities()
+  val capabilities = remember(capabilityRevision, state) { store.capabilities() }
+  val liveAlarmScheduled = store.hasScheduledLiveAlarm()
   val deviceSupport = deviceSupportForManufacturer(Build.MANUFACTURER)
   val needsReadinessHelp = !state.onboardingComplete ||
-    (state.alarm.enabled && !state.activationReadiness(capabilities).ready)
+    (state.alarm.enabled && (!state.activationReadiness(capabilities).ready || !liveAlarmScheduled))
 
   LazyColumn(
     modifier = modifier.fillMaxSize(),
@@ -341,12 +360,28 @@ private fun AlarmScreen(
         ActivationStatusCard(
           state = state,
           capabilities = capabilities,
+          liveAlarmScheduled = liveAlarmScheduled,
           onResume = store::resumeOnboarding,
         )
       }
-    } else {
-      item { PhoneVerificationCard(onVerifyPhone) }
     }
+    item { AlarmDial(state.alarm, waitLabel, onEditTime = { showTimeEditor = true }) }
+    item {
+      ListItem(
+        headlineContent = { Text("Alarm", style = MaterialTheme.typography.bodyLarge) },
+        supportingContent = {
+          val allowedCount = state.alarm.allowedLocationIds.size + state.alarm.allowedObjectTargetIds.size
+          Text(if (allowedCount == 0) "Requires an allowed QR spot or object" else "$allowedCount dismissal target${if (allowedCount == 1) "" else "s"} allowed")
+        },
+        trailingContent = { Switch(checked = state.alarm.enabled, onCheckedChange = onToggleEnabled) },
+      )
+    }
+    if (!needsReadinessHelp) {
+      item { PhoneVerificationCard(state, onVerifyPhone, store::cancelPhoneVerification) }
+    }
+    item { TimeEditor(state.alarm.timeMinutesLocal, waitLabel, onEditTime = { showTimeEditor = true }) }
+    item { SleepDurationSetter(onTime = onTime) }
+    item { DayPicker(state.alarm.repeatDays, onDay) }
     if (!capabilities.batteryOptimizationRelaxed || deviceSupport != null) {
       item {
         ReliabilityChecklistCard(
@@ -357,20 +392,6 @@ private fun AlarmScreen(
         )
       }
     }
-    item { AlarmDial(state.alarm, waitLabel, onEditTime = { showTimeEditor = true }) }
-    item {
-      ListItem(
-        headlineContent = { Text("Alarm enabled", style = MaterialTheme.typography.bodyLarge) },
-        supportingContent = {
-          val allowedCount = state.alarm.allowedLocationIds.size + state.alarm.allowedObjectTargetIds.size
-          Text(if (allowedCount == 0) "Requires an allowed QR spot or object" else "$allowedCount dismissal target${if (allowedCount == 1) "" else "s"} allowed")
-        },
-        trailingContent = { Switch(checked = state.alarm.enabled, onCheckedChange = onToggleEnabled) },
-      )
-    }
-    item { TimeEditor(state.alarm.timeMinutesLocal, waitLabel, onEditTime = { showTimeEditor = true }) }
-    item { SleepDurationSetter(onTime = onTime) }
-    item { DayPicker(state.alarm.repeatDays, onDay) }
     item {
       ListItem(
         headlineContent = { Text("Vibration", style = MaterialTheme.typography.bodyLarge) },
@@ -403,20 +424,27 @@ private fun AlarmScreen(
 private fun ActivationStatusCard(
   state: AppState,
   capabilities: ReliabilityChecklistState,
+  liveAlarmScheduled: Boolean,
   onResume: () -> Unit,
 ) {
   val missingSteps = state.activationReadiness(capabilities).missingSteps
-  val missingLabels = missingSteps.map { step ->
+  val missingLabels = buildList {
+    if (!state.onboardingComplete && state.onboardingStep == OnboardingSteps.Alarm &&
+      ActivationStep.AlarmSchedule !in missingSteps) {
+      add("confirm alarm time")
+    }
+    addAll(missingSteps.map { step ->
     when (step) {
       ActivationStep.DismissalTarget -> "choose a dismissal target"
       ActivationStep.AlarmSchedule -> "choose repeat days"
       ActivationStep.PhonePermissions -> "allow required phone permissions"
     }
-  }
+    })
+  }.ifEmpty { listOf(if (liveAlarmScheduled) "finish alarm setup" else "schedule your alarm") }
   Card(modifier = Modifier.fillMaxWidth()) {
     ListItem(
-      headlineContent = { Text("Alarm not ready: ${missingSteps.size.coerceAtLeast(1)} step${if (missingSteps.size == 1) "" else "s"} remaining") },
-      supportingContent = { Text(missingLabels.ifEmpty { listOf("finish alarm setup") }.joinToString(" · ")) },
+      headlineContent = { Text("Alarm not ready: ${missingLabels.size} step${if (missingLabels.size == 1) "" else "s"} remaining") },
+      supportingContent = { Text(missingLabels.joinToString(" · ")) },
       leadingContent = { Icon(Icons.Default.Alarm, contentDescription = null) },
       trailingContent = { Button(onClick = onResume) { Text("Resume") } },
     )
@@ -424,13 +452,29 @@ private fun ActivationStatusCard(
 }
 
 @Composable
-private fun PhoneVerificationCard(onVerifyPhone: () -> Unit) {
+private fun PhoneVerificationCard(state: AppState, onVerifyPhone: () -> Unit, onCancel: () -> Unit) {
+  val scheduledAt = state.onboardingTestScheduledAtMillis
+  var now by remember(scheduledAt) { mutableStateOf(System.currentTimeMillis()) }
+  LaunchedEffect(scheduledAt) {
+    while (scheduledAt != null && now < scheduledAt) {
+      delay(500L)
+      now = System.currentTimeMillis()
+    }
+  }
+  val pending = scheduledAt != null && now < scheduledAt
+  val secondsRemaining = if (scheduledAt == null) 0 else ((scheduledAt - now + 999L) / 1_000L).coerceAtLeast(0)
   Card(modifier = Modifier.fillMaxWidth()) {
     ListItem(
-      headlineContent = { Text("Verify this phone") },
-      supportingContent = { Text("Optional: confirm sound, lock-screen delivery, and dismissal before tonight.") },
+      headlineContent = { Text(if (pending) "Test in ${secondsRemaining}s" else "Verify this phone") },
+      supportingContent = { Text(if (pending) "Lock your phone now. Your real alarm stays scheduled." else "Optional: check ringing and dismissal on this phone.") },
       leadingContent = { Icon(Icons.Default.HealthAndSafety, contentDescription = null) },
-      trailingContent = { TextButton(onClick = onVerifyPhone) { Text("Verify now") } },
+      trailingContent = {
+        if (pending) {
+          TextButton(onClick = onCancel) { Text("Cancel test") }
+        } else {
+          TextButton(onClick = onVerifyPhone) { Text("Verify now") }
+        }
+      },
     )
   }
 }

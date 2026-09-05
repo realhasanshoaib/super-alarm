@@ -79,6 +79,10 @@ object AlarmScheduler {
     }
   }
 
+  fun cancelTest(context: Context, config: StoredAlarmConfig, triggerAtMillis: Long) {
+    cancelOccurrence(context, config, triggerAtMillis, "test")
+  }
+
   private fun scheduleOccurrence(
     context: Context,
     config: StoredAlarmConfig,

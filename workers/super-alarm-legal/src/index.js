@@ -431,18 +431,18 @@ function home() {
       <div>
         <p class="overline">The scan-to-stop alarm</p>
         <h1 class="hero-title display">Wake up<span class="accent">.</span><br>For real<span class="accent">.</span></h1>
-        <p class="hero-sub">Super Alarm gets you out of bed before it stops. Scan an enrolled household object or a QR spot across the room. No sleepy swipe and no account.</p>
+        <p class="hero-sub">Give your morning a scan-to-finish challenge. Scan an enrolled household object or a QR spot across the room. Android rings at your chosen time. On iPhone, tap the scheduled notification to start the in-app sound and challenge.</p>
         <div class="hero-actions">
           <a class="button button-primary" href="${PLAY_URL}" target="_blank" rel="noopener" data-telemetry-action="store_link_clicked" data-telemetry-platform="android" data-telemetry-placement="hero">${icon("playstore")} Get for Android</a>
           <a class="button button-tonal" href="${IOS_URL}" target="_blank" rel="noopener" data-telemetry-action="store_link_clicked" data-telemetry-platform="ios" data-telemetry-placement="hero">${icon("apple")} Get for iPhone</a>
         </div>
-        <div class="proof"><div><b>Object or QR</b><span>you choose the target</span></div><div><b>No snooze</b><span>to cheat</span></div><div><b>On-device scans</b><span>camera data stays private</span></div></div>
+        <div class="proof"><div><b>Object or QR</b><span>you choose the target</span></div><div><b>No account</b><span>start on your phone</span></div><div><b>On-device scans</b><span>camera data stays private</span></div></div>
       </div>
       ${phonePreview()}
     </div></section>
 
     <section class="section"><div class="container">
-      <div class="section-head"><h2 class="section-title display">It won't stop until you're up.</h2><p class="section-sub">Enroll your fridge, mirror, or coffee machine, or place a QR spot across the room. The alarm stops after you reach and scan the chosen target.</p></div>
+      <div class="section-head"><h2 class="section-title display">Give yourself a reason to get up.</h2><p class="section-sub">Enroll an object or place a QR spot across the room. Finish the in-app challenge by scanning your chosen target.</p></div>
       <div class="flow">
         <div class="flow-step">
           <div class="stage"><div class="mini-qr"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="pin">${icon("pin")}</div></div>
@@ -466,7 +466,7 @@ function home() {
 
     <section class="section"><div class="container"><div class="cta-inner">
       <h2>Set the alarm that makes the<br>morning real.</h2>
-      <p>Super Alarm is available now on Google Play and the App Store.</p>
+      <p>Super Alarm is available on Google Play and the App Store. On iPhone and iPad, this version uses standard notifications, not Critical Alerts. Silent mode, Focus, and notification settings can silence the reminder. Continuous in-app sound starts only after you tap the notification. Keep a separate Clock alarm if you need a wake-up sound without opening a notification.</p>
       <div class="hero-actions"><a class="button button-primary" href="${PLAY_URL}" target="_blank" rel="noopener" data-telemetry-action="store_link_clicked" data-telemetry-platform="android" data-telemetry-placement="footer_cta">${icon("playstore")} Android</a><a class="button button-tonal" href="${IOS_URL}" target="_blank" rel="noopener" data-telemetry-action="store_link_clicked" data-telemetry-platform="ios" data-telemetry-placement="footer_cta">${icon("apple")} iPhone</a></div>
     </div></div></section>
   </main>`;
@@ -497,10 +497,10 @@ function support() {
   const body = `<main class="container legal-main">
     <section class="legal-hero"><p class="overline">Support</p><h1>Need help? We've got you.</h1><p class="meta">Usually responds within 24 hours</p><a class="email-link" href="mailto:${SUPPORT_EMAIL}">${icon("mail")} ${SUPPORT_EMAIL}</a></section>
     <section id="ios" class="support-grid">
-      <article class="support-card highlight"><h3>Getting started</h3><p>No account required. Open the app, scan a household object or add a QR spot, grant the requested camera and alarm permissions, then use <code>Run routine test</code> before your first real morning.</p></article>
+      <article class="support-card highlight"><h3>Getting started</h3><p>No account required. Choose an object or QR spot, set a time, and grant essential permissions. Use Finish later to save your progress and resume from home. After setup, try the optional wake-up test to check your phone.</p></article>
       <article class="support-card"><h3>Android alarm not firing?</h3><p>Open the Health tab and check notifications, exact alarms, full-screen intent, and battery optimization. These permissions protect reliable wakeups.</p></article>
       <article class="support-card"><h3>QR scan not working?</h3><p>Make sure the QR spot is allowed for the alarm. Only selected locations can dismiss the current alarm.</p></article>
-      <article class="support-card"><h3>Super Alarm on iPhone</h3><p>Install the production iPhone app from the App Store, enroll an object or QR spot, allow notifications and sound, then run the setup test.</p><p><a href="${IOS_URL}" target="_blank" rel="noopener" data-telemetry-action="store_link_clicked" data-telemetry-platform="ios" data-telemetry-placement="support">Open the App Store</a></p></article>
+      <article class="support-card"><h3>Super Alarm on iPhone</h3><p>Allow notifications and sound, then tap the scheduled notification to start the in-app alarm and scan challenge. This version uses standard notifications, not Critical Alerts. Silent mode, Focus, and notification settings can silence or hide the reminder. Keep a separate Clock alarm if you need a wake-up sound without tapping a notification.</p><p><a href="${IOS_URL}" target="_blank" rel="noopener" data-telemetry-action="store_link_clicked" data-telemetry-platform="ios" data-telemetry-placement="support">Open the App Store</a></p></article>
       <article class="support-card"><h3>Export diagnostics</h3><p>Go to the Health tab and export diagnostics. Attach the JSON file to your email with your device model and OS version.</p></article>
       <article class="support-card"><h3>Reviewer path</h3><p>Scan an object or create a QR location, grant permissions, run a routine test, and use the enrolled target to dismiss. No account is required.</p></article>
     </section>
@@ -517,7 +517,7 @@ const worker = {
     if (path === "/support") return support();
     if (path === "/robots.txt") return new Response(`User-agent: *\nAllow: /\nSitemap: ${SITE_URL}/sitemap.xml\n`, { headers: { "content-type": "text/plain; charset=utf-8" } });
     if (path === "/sitemap.xml") return new Response(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${SITE_URL}/</loc></url><url><loc>${SITE_URL}/privacy</loc></url><url><loc>${SITE_URL}/support</loc></url></urlset>`, { headers: { "content-type": "application/xml; charset=utf-8" } });
-    if (path === "/llms.txt") return new Response("# Super Alarm\n\nSuper Alarm is a native Android and iOS alarm for heavy sleepers. It requires an on-device household-object recognition or an allowed QR scan to dismiss an alarm.\n\n- Privacy: /privacy\n- Support: /support\n", { headers: { "content-type": "text/plain; charset=utf-8" } });
+    if (path === "/llms.txt") return new Response("# Super Alarm\n\nSuper Alarm is a native Android alarm and an iOS notification-triggered wake-up challenge. Scan an enrolled object or an allowed QR spot to finish the in-app challenge. On iOS, standard notifications require a tap before continuous in-app sound starts; Silent mode and Focus can silence the reminder. Critical Alerts are not enabled in this version.\n\n- Privacy: /privacy\n- Support: /support\n", { headers: { "content-type": "text/plain; charset=utf-8" } });
     return home();
   },
 };

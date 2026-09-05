@@ -24,7 +24,7 @@ enum TelemetryEventName: String {
     case dismissalTargetAvailabilityChanged = "dismissal_target_availability_changed"
     case dismissalTargetReady = "dismissal_target_ready"
     case alarmPermissionsReady = "alarm_permissions_ready"
-    case phoneSetupBlockerObserved = "phone_setup_blocker_observed"
+    case phoneSetupBlockerObserved = "phone_setup_blocked"
     case alarmTimeChanged = "alarm_time_changed"
     case alarmRepeatChanged = "alarm_repeat_changed"
     case alarmEnabled = "alarm_enabled"
@@ -41,6 +41,7 @@ enum TelemetryEventName: String {
     case wakeUpTestStarted = "wake_up_test_started"
     case wakeUpTestPassed = "wake_up_test_passed"
     case wakeUpTestFailed = "wake_up_test_failed"
+    case wakeUpTestCancelled = "wake_up_test_cancelled"
     case healthCheckViewed = "health_check_viewed"
     case diagnosticsExported = "diagnostics_exported"
     case analyticsPreferenceChanged = "analytics_preference_changed"
@@ -74,13 +75,13 @@ enum EnrollmentCancellationReason: String {
 }
 
 enum PhoneSetupBlocker: String {
-    case dismissalTargetMissing = "dismissal_target_missing"
-    case repeatDayMissing = "repeat_day_missing"
+    case dismissalTargetMissing = "missing_target"
+    case repeatDayMissing = "missing_repeat_days"
     case notificationsDenied = "notifications_denied"
     case notificationsNotRequested = "notifications_not_requested"
     case alertsDisabled = "alerts_disabled"
     case soundsDisabled = "sounds_disabled"
-    case schedulingFailed = "scheduling_failed"
+    case schedulingFailed = "schedule_failed"
 }
 
 enum TelemetryFailureOperation: String {
@@ -214,7 +215,7 @@ final class LiveTelemetryClient: TelemetryClient {
         if let enabled = event.enabled { properties["enabled"] = enabled }
         if let alarmKind = event.alarmKind { properties["alarm_kind"] = alarmKind.rawValue }
         if let cancellationReason = event.cancellationReason { properties["cancellation_reason"] = cancellationReason.rawValue }
-        if let phoneSetupBlocker = event.phoneSetupBlocker { properties["phone_setup_blocker"] = phoneSetupBlocker.rawValue }
+        if let phoneSetupBlocker = event.phoneSetupBlocker { properties["failure_code"] = phoneSetupBlocker.rawValue }
         PostHogSDK.shared.capture(event.name.rawValue, properties: properties)
         let breadcrumb = Breadcrumb(level: .info, category: "product")
         breadcrumb.message = event.name.rawValue

@@ -56,6 +56,7 @@ enum class TelemetryEventName(val wireName: String) {
   WakeUpTestStarted("wake_up_test_started"),
   WakeUpTestPassed("wake_up_test_passed"),
   WakeUpTestFailed("wake_up_test_failed"),
+  WakeUpTestCancelled("wake_up_test_cancelled"),
   HealthCheckViewed("health_check_viewed"),
   DiagnosticsExported("diagnostics_exported"),
   AnalyticsPreferenceChanged("analytics_preference_changed"),

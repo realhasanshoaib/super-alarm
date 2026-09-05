@@ -11,7 +11,7 @@ An alarm clock that actually rings
 - Exact scheduled alarms that fire on time.
 - Full-screen ringing even while your phone is locked.
 - Backup re-rings if a ring is missed, and alarms restored after reboot.
-- A real wake-up test during setup, so you know it works before tomorrow morning.
+- An optional wake-up test after setup to check ringing and dismissal on your phone.
 
 Set up with confidence in minutes
 - Guided setup for your dismissal target, alarm time, and repeat days.
