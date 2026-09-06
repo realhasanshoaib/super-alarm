@@ -245,12 +245,16 @@ private struct AlarmOnboardingStep: View {
                 .accessibilityAddTraits(.isHeader)
             Text("Select your wake-up time and at least one repeat day.")
                 .foregroundStyle(.secondary)
+            Text("Wake-up time")
+                .font(.headline)
             DatePicker(
                 "Wake-up time",
                 selection: Binding(get: alarmDate, set: store.setTime),
                 displayedComponents: .hourAndMinute
             )
             .datePickerStyle(.wheel)
+            .labelsHidden()
+            .frame(maxWidth: .infinity)
             Text("Repeat")
                 .font(.headline)
             WeekdayPickerView(selected: store.state.alarm.repeatDays, onToggle: store.toggleRepeatDay)
