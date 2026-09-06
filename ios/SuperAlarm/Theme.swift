@@ -1,6 +1,8 @@
 import SwiftUI
 
 extension Color {
+    /// Filled blue actions keep white labels readable on both light and camera surfaces.
+    static let brandBlue = Color(red: 29 / 255, green: 56 / 255, blue: 165 / 255)
     /// Deep navy from the Super Alarm logo (#0A1646).
     static let brandNavy = Color(red: 10 / 255, green: 22 / 255, blue: 70 / 255)
     /// Near-black night blue used behind the navy on the ringing screen.

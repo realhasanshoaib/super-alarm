@@ -20,6 +20,7 @@ enum TelemetryEventName: String {
     case dismissalEnrollmentCompleted = "dismissal_enrollment_completed"
     case dismissalEnrollmentCancelled = "dismissal_enrollment_cancelled"
     case dismissalEnrollmentFailed = "dismissal_enrollment_failed"
+    case dismissalEnrollmentBlocked = "dismissal_enrollment_blocked"
     case dismissalTargetDeleted = "dismissal_target_deleted"
     case dismissalTargetAvailabilityChanged = "dismissal_target_availability_changed"
     case dismissalTargetReady = "dismissal_target_ready"

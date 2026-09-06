@@ -525,7 +525,7 @@ struct SettingsHealthView: View {
                     title: "Camera",
                     value: cameraPermissionLabel,
                     tint: .accentColor
-                ) { store.openCameraSettings() }
+                ) { store.requestCameraAccessOrOpenSettings() }
             }
 
             Section("iPhone alarm delivery") {
@@ -718,7 +718,7 @@ struct RingingView: View {
                         }
                         .brandProminentButtonStyle()
                         .controlSize(.large)
-                        .tint(.brandSky)
+                        .tint(.brandBlue)
                         .accessibilityHint("Opens the object scanner to dismiss the alarm")
                     }
                     if !store.allowedLocations.isEmpty {
@@ -731,7 +731,7 @@ struct RingingView: View {
                         }
                         .brandProminentButtonStyle()
                         .controlSize(.large)
-                        .tint(.brandSky)
+                        .tint(.brandBlue)
                     }
                     if store.state.runtime?.kind == .test {
                         Button("Stop test") { store.stopVerificationRinging() }

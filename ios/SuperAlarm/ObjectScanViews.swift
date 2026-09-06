@@ -130,6 +130,7 @@ struct ObjectEnrollmentView: View {
     @State private var cameraFailure: ObjectCameraFailure?
     @State private var isComplete = false
     @State private var didTrackFailure = false
+    @State private var reportedFrameIssues: Set<ObjectFrameIssue> = []
     @State private var cameraSessionID = UUID()
 
     private let instructions = [
@@ -176,6 +177,13 @@ struct ObjectEnrollmentView: View {
     private func handleFrame(_ sample: ObjectFrameSample) {
         guard !isComplete else { return }
         issue = sample.issue
+        if let issue = sample.issue, reportedFrameIssues.insert(issue).inserted {
+            store.track(ProductEvent(
+                .dismissalEnrollmentBlocked, surface: .objectEnrollment, targetType: .object,
+                source: store.state.hasCompletedOnboarding ? .app : .onboarding,
+                outcome: .blocked, failureCode: issue.telemetryCode
+            ))
+        }
         guard sample.issue == nil, let fingerprint = sample.fingerprint else { return }
         cameraFailure = nil
         let elapsed = sample.capturedAt - lastCaptureAt
@@ -361,7 +369,7 @@ private struct ObjectScanPanel: View {
                 if let onOpenSettings {
                     Button("Open camera settings", action: onOpenSettings)
                         .brandProminentButtonStyle()
-                        .tint(.brandSky)
+                        .tint(.brandBlue)
                 }
                 if let onRetry {
                     Button("Try camera again", action: onRetry)

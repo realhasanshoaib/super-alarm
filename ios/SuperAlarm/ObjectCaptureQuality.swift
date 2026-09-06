@@ -5,6 +5,14 @@ enum ObjectFrameIssue: String {
     case tooDark = "Add light so the object's details are visible"
     case tooBright = "Move away from glare"
     case lowDetail = "Include an edge, handle, or distinctive detail"
+
+    var telemetryCode: String {
+        switch self {
+        case .tooDark: return "frame_too_dark"
+        case .tooBright: return "frame_clipped"
+        case .lowDetail: return "frame_low_detail"
+        }
+    }
 }
 
 enum ObjectCaptureQuality {

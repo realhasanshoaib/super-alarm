@@ -31,6 +31,8 @@ Break down phone-setup blockers by bounded `failure_code` and `permission_kind`.
 
 Break down iOS enrollment cancellation by recorded reason, with unspecified cancellation kept as unknown. A dismissed camera sheet does not prove frustration or camera failure. Compare object enrollment with the QR fallback using distinct users, not scan attempt counts.
 
+iOS emits `dismissal_enrollment_blocked` at most once per quality issue per enrollment session. Its bounded `failure_code` is `frame_too_dark`, `frame_clipped`, or `frame_low_detail`. These identify a temporary frame-quality blocker, not a failed enrollment; correlate with completion or cancellation. Images, feature prints, and object labels are never included.
+
 Report optional tests separately: scheduled, started, passed, failed or cancelled, always with `alarm_kind = test`. Do not put these events between scheduling a live alarm and activation.
 
 ## Compare changes

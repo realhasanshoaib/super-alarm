@@ -1,4 +1,5 @@
 import Foundation
+import AVFoundation
 import SwiftUI
 import UIKit
 import UserNotifications
@@ -374,6 +375,21 @@ final class AppStore: ObservableObject {
         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
         telemetry.capture(ProductEvent(.deviceSettingsOpened, source: state.hasCompletedOnboarding ? .app : .onboarding, permissionKind: "camera"))
         UIApplication.shared.open(url)
+    }
+
+    func requestCameraAccessOrOpenSettings() {
+        guard AVCaptureDevice.authorizationStatus(for: .video) == .notDetermined else {
+            openCameraSettings()
+            return
+        }
+        Task {
+            let granted = await AVCaptureDevice.requestAccess(for: .video)
+            telemetry.capture(ProductEvent(
+                .permissionResultObserved, source: .app,
+                outcome: granted ? .allowed : .denied, permissionKind: "camera"
+            ))
+            await refreshHealth()
+        }
     }
 
     func refreshHealth() async {
