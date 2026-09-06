@@ -299,7 +299,8 @@ final class AppStore: ObservableObject {
             fingerprints: fingerprints,
             matchDistanceThreshold: ObjectFeaturePrintCodec.matchThreshold(for: fingerprints),
             visionRevision: ObjectFeaturePrintCodec.revision,
-            createdAt: Date()
+            createdAt: Date(),
+            captureRegionVersion: 2
         )
         state.objectTargets.append(target)
         state.alarm.allowedObjectTargetIds.append(id)

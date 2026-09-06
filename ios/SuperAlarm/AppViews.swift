@@ -59,6 +59,8 @@ struct RootView: View {
 
 struct AlarmEditorView: View {
     @EnvironmentObject private var store: AppStore
+    @AppStorage("last_alarm_disable_feedback_prompt") private var lastFeedbackPrompt = 0.0
+    @State private var showDisableFeedback = false
 
     var body: some View {
         List {
@@ -81,7 +83,7 @@ struct AlarmEditorView: View {
             }
 
             Section {
-                Toggle(isOn: Binding(get: { store.state.alarm.isEnabled }, set: store.setEnabled)) {
+                Toggle(isOn: Binding(get: { store.state.alarm.isEnabled }, set: setEnabled)) {
                     Label("Alarm", systemImage: "bell")
                 }
                 DatePicker(
@@ -93,17 +95,6 @@ struct AlarmEditorView: View {
                 Toggle(isOn: Binding(get: { store.state.alarm.vibrates }, set: store.setVibrates)) {
                     Label("In-app vibration", systemImage: "iphone.radiowaves.left.and.right")
                 }
-            }
-
-            Section("How this alarm works") {
-                Label("Tap the notification to start alarm sound", systemImage: "hand.tap")
-                Text("Standard notifications can be silenced by Silent mode or Focus. Open the notification to start continuous sound and the scan challenge.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            if store.state.hasCompletedOnboarding {
-                PhoneVerificationCard()
             }
 
             Section("Repeat") {
@@ -141,11 +132,11 @@ struct AlarmEditorView: View {
                 Button {
                     store.activeSheet = .addObject
                 } label: {
-                    Label("Scan an Object", systemImage: "camera.viewfinder")
+                    Label("Scan an object", systemImage: "camera.viewfinder")
                 }
             }
 
-            Section("QR Spots") {
+            Section("QR spots") {
                 if store.state.qrLocations.isEmpty {
                     ContentUnavailableRow(
                         systemImage: "qrcode",
@@ -183,22 +174,46 @@ struct AlarmEditorView: View {
                 Button {
                     store.activeSheet = .addSpot
                 } label: {
-                    Label("Add QR Spot", systemImage: "plus")
+                    Label("Add QR spot", systemImage: "plus")
+                }
+            }
+
+            if store.state.hasCompletedOnboarding {
+                PhoneVerificationCard()
+            }
+
+            Section("How this alarm works") {
+                DisclosureGroup {
+                    Text("Standard notifications can be silenced by Silent mode or Focus. Open the notification to start continuous sound and the scan challenge.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } label: {
+                    Label("Tap the notification to start sound", systemImage: "hand.tap")
                 }
             }
         }
         .navigationTitle("Super Alarm")
         .onAppear { store.track(ProductEvent(.surfaceViewed, surface: .alarm, source: .app)) }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    store.requestNotifications()
-                } label: {
-                    Image(systemName: "bell.badge")
+        .confirmationDialog("Alarm is off. What made you turn it off?", isPresented: $showDisableFeedback, titleVisibility: .visible) {
+            ForEach(AlarmDisableReason.allCases) { reason in
+                Button(reason.title) {
+                    store.track(ProductEvent(.alarmDisableFeedback, surface: .alarm, source: .app, alarmKind: .live, disableReason: reason))
                 }
-                .accessibilityLabel("Request notifications")
             }
+            Button("Not now", role: .cancel) { }
+        } message: {
+            Text("Optional. Your alarm is already off. Your answer helps us improve it.")
         }
+    }
+
+    private func setEnabled(_ enabled: Bool) {
+        let wasEnabled = store.state.alarm.isEnabled
+        store.setEnabled(enabled)
+        let now = Date().timeIntervalSince1970
+        guard wasEnabled, !enabled, store.analyticsEnabled,
+              now - lastFeedbackPrompt >= 7 * 24 * 60 * 60 else { return }
+        lastFeedbackPrompt = now
+        showDisableFeedback = true
     }
 
     private var timeText: String {
@@ -390,7 +405,8 @@ struct AddQrSpotView: View {
                     Text("Use a place you must physically reach in the morning, like Bathroom sink or Kitchen kettle.")
                 }
             }
-            .navigationTitle("Add QR Spot")
+            .navigationTitle("Add QR spot")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
@@ -447,18 +463,19 @@ struct QrSpotDetailView: View {
                     }
                     Section {
                         ShareLink(item: currentSpot.payload) {
-                            Label("Share Payload", systemImage: "square.and.arrow.up")
+                            Label("Share QR link", systemImage: "square.and.arrow.up")
                         }
                         Button(role: .destructive) {
                             store.deleteQrSpot(currentSpot)
                             dismiss()
                         } label: {
-                            Label("Delete QR Spot", systemImage: "trash")
+                            Label("Delete QR spot", systemImage: "trash")
                         }
                     }
                 }
             }
             .navigationTitle(spot.label)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
     }
@@ -506,9 +523,9 @@ struct SettingsHealthView: View {
                 HealthRow(
                     systemImage: "camera.fill",
                     title: "Camera",
-                    value: "Requested when scanning",
-                    tint: .gray
-                ) { }
+                    value: cameraPermissionLabel,
+                    tint: .accentColor
+                ) { store.openCameraSettings() }
             }
 
             Section("iPhone alarm delivery") {
@@ -528,7 +545,7 @@ struct SettingsHealthView: View {
                     } label: {
                         HStack(spacing: 12) {
                             SettingsIconTile(systemImage: "flask.fill", tint: .brandGreen)
-                            Text("Verify This Phone")
+                            Text("Verify this phone")
                                 .foregroundStyle(.primary)
                         }
                     }
@@ -547,7 +564,7 @@ struct SettingsHealthView: View {
                 } label: {
                     HStack(spacing: 12) {
                         SettingsIconTile(systemImage: "arrow.counterclockwise", tint: .brandOrange)
-                        Text("Run Setup Again")
+                        Text("Run setup again")
                             .foregroundStyle(.primary)
                     }
                 }
@@ -581,6 +598,15 @@ struct SettingsHealthView: View {
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
+    }
+
+    private var cameraPermissionLabel: String {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized: return "Allowed"
+        case .denied, .restricted: return "Not allowed"
+        case .notDetermined: return "Not requested"
+        @unknown default: return "Check Settings"
+        }
     }
 }
 
@@ -616,6 +642,9 @@ struct HealthRow: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.trailing)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
             }
         }
         .accessibilityElement(children: .combine)

@@ -133,7 +133,7 @@ private struct DismissalMethodOnboardingStep: View {
 
     var body: some View {
         OnboardingPage(alignment: .leading) {
-            Text("Choose your dismissal target")
+            Text("Choose what you’ll scan")
                 .font(.largeTitle.weight(.semibold))
                 .accessibilityAddTraits(.isHeader)
             Text("Pick something away from bed. The alarm challenge ends only after you scan it.")
@@ -224,6 +224,7 @@ private struct OnboardingQrSetupView: View {
                     }
                 }
             }
+            .navigationBarTitleDisplayMode(.inline)
         }
         .onAppear {
             guard !didTrackStart else { return }
@@ -386,7 +387,6 @@ private struct OnboardingChoiceLabel: View {
                 Text(title).font(.headline)
                 Text(detail)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()

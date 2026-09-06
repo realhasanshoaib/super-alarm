@@ -6,7 +6,20 @@ enum ActivationChecks {
         try checkLegacyDecodingAndResume()
         checkCompletedUserMigration()
         checkReadiness()
+        try checkObjectCaptureCompatibility()
         print("Activation checks passed")
+    }
+
+    private static func checkObjectCaptureCompatibility() throws {
+        var legacy = ObjectTarget(id: UUID(), label: "Coffee machine", fingerprints: ["saved-view"], matchDistanceThreshold: 12, visionRevision: 1, createdAt: Date())
+        let decoder = JSONDecoder()
+        let encoder = JSONEncoder()
+        let restoredLegacy = try decoder.decode(ObjectTarget.self, from: encoder.encode(legacy))
+        precondition(restoredLegacy.captureRegionVersion == nil)
+        legacy.captureRegionVersion = 2
+        let restoredCurrent = try decoder.decode(ObjectTarget.self, from: encoder.encode(legacy))
+        precondition(restoredCurrent.captureRegionVersion == 2)
+        precondition(restoredCurrent.fingerprints == legacy.fingerprints)
     }
 
     private static func checkLegacyDecodingAndResume() throws {

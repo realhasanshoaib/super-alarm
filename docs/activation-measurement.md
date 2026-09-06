@@ -35,6 +35,10 @@ Report optional tests separately: scheduled, started, passed, failed or cancelle
 
 ## Compare changes
 
+On iOS, `alarm_disable_feedback` records an optional reason after a user manually turns an enabled alarm off. `disable_reason` is one of `did_not_wake_me`, `scanning_difficult`, `too_much_effort`, or `not_needed_now`; `alarm_kind` is `live`. Turning the alarm off does not depend on answering. The prompt respects the analytics preference and has a seven-day device-local cooldown, including when dismissed without an answer. No free text or object labels are collected.
+
+Report the number of responses beside each reason distribution. These are self-selected responses from prompted users, not a representative churn survey; no answer is unknown, not “not needed.” Android does not yet emit this feedback event.
+
 Ship one coherent change set at a time and compare equally aged cohorts from before and after the release. Report numerator and denominator beside each percentage. Use the new event contract only for builds that implement it; missing old events are unknown, not zero. Do not pool old and new scheduling telemetry into a conversion claim.
 
 The first success measure is the share of first-open users reaching a real dismissal within seven days. Also report time to live scheduling, setup resume completion, schedule failures, and test-to-live separation. Measure repeat live dismissals in the following week among activated users to distinguish retention from setup abandonment. Small samples support directional learning, not a guaranteed churn reduction or a causal A/B-test claim.

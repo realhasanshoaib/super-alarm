@@ -29,7 +29,7 @@ struct AddObjectView: View {
                     Form {
                         Section("What scanning looks like") {
                             ObjectEnrollmentDemo()
-                            Text("Center one fixed object, then move slowly around it while Super Alarm saves several views on this iPhone.")
+                            Text("Super Alarm learns how your object looks. Center it, then move slowly while eight views are saved automatically on this iPhone.")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
@@ -37,19 +37,20 @@ struct AddObjectView: View {
                             TextField("Object name", text: $label)
                                 .textInputAutocapitalization(.words)
                         } footer: {
-                            Text("Choose a distinctive object away from bed, such as your fridge or coffee machine.")
+                            Text("Choose a fixed object away from bed. Include a handle, label, or textured detail, not just a plain surface.")
                         }
                         Section {
                             Button("Use a QR spot instead") { useQr(reason: .qrFallback) }
                         }
                     }
-                    .navigationTitle("New Wake Object")
+                    .navigationTitle("New object")
+                    .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
                             Button("Cancel") { showCancellationReasons = true }
                         }
                         ToolbarItem(placement: .confirmationAction) {
-                            Button("Open Camera") { startScan() }
+                            Button("Open camera") { startScan() }
                                 .disabled(label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         }
                     }
@@ -94,7 +95,7 @@ struct AddObjectView: View {
     }
 
     private func useQrAfterCameraFailure() {
-        useQr(reason: .cameraProblem)
+        useQr(reason: .qrFallback)
     }
 
     private func useQr(reason: EnrollmentCancellationReason) {
@@ -147,32 +148,25 @@ struct ObjectEnrollmentView: View {
             ObjectCameraView(mode: .enrollment, onFrame: handleFrame, onError: handleError)
                 .id(cameraSessionID)
                 .ignoresSafeArea()
-            ObjectScanGuide(progress: progress, active: issue == nil && cameraFailure == nil)
+            if cameraFailure == nil {
+                ObjectScanGuide(progress: progress, active: issue == nil)
+            } else {
+                Image(systemName: "camera.badge.ellipsis")
+                    .font(.system(size: 52, weight: .light))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .accessibilityHidden(true)
+            }
             ObjectScanTopBar(title: "Scan \(label)", onClose: onCancelRequested)
             ObjectScanPanel(
-                title: fingerprints.isEmpty ? "Look at \(label)" : "Keep moving slowly",
+                title: cameraFailure == nil ? "\(fingerprints.count) of \(instructions.count) views saved" : "Let’s get the camera ready",
                 message: cameraFailure?.message ?? issue?.rawValue ?? instructions[min(fingerprints.count, instructions.count - 1)],
-                progress: progress
+                progress: progress,
+                onRetry: cameraFailure == nil ? nil : { retryCamera() },
+                onOpenSettings: cameraFailure == .permissionDenied ? { store.openCameraSettings() } : nil,
+                onUseQr: onCameraFallback
             )
-            if let cameraFailure {
-                VStack(spacing: 12) {
-                    Spacer()
-                    if cameraFailure == .permissionDenied {
-                        Button("Open iOS Settings", action: store.openCameraSettings)
-                            .brandProminentButtonStyle()
-                    }
-                    Button("Try Camera Again", action: retryCamera)
-                        .brandGlassButtonStyle()
-                        .tint(.white)
-                    Button("Use a QR spot instead", action: onCameraFallback)
-                        .brandGlassButtonStyle()
-                        .tint(.white)
-                }
-                .padding(24)
-                .padding(.bottom, 130)
-            }
         }
-        .background(Color.black)
+        .background { Color.black }
     }
 
     private var progress: Double {
@@ -183,6 +177,7 @@ struct ObjectEnrollmentView: View {
         guard !isComplete else { return }
         issue = sample.issue
         guard sample.issue == nil, let fingerprint = sample.fingerprint else { return }
+        cameraFailure = nil
         let elapsed = sample.capturedAt - lastCaptureAt
         guard elapsed >= 0.325 else { return }
         let movedEnough = fingerprints.last
@@ -308,10 +303,10 @@ private struct ObjectScanGuide: View {
                 .stroke(Color.white.opacity(0.28), lineWidth: 7)
             Circle()
                 .trim(from: 0, to: min(1, max(0, progress)))
-                .stroke(Color.mint, style: StrokeStyle(lineWidth: 7, lineCap: .round))
+                .stroke(Color.brandGreen, style: StrokeStyle(lineWidth: 7, lineCap: .round))
                 .rotationEffect(.degrees(-90))
             RoundedRectangle(cornerRadius: 72, style: .continuous)
-                .stroke(active ? Color.mint : Color.white, lineWidth: 2)
+                .stroke(active ? Color.brandGreen : Color.white, lineWidth: 2)
                 .padding(10)
         }
         .frame(width: 300, height: 300)
@@ -349,6 +344,9 @@ private struct ObjectScanPanel: View {
     let title: String
     let message: String
     let progress: Double
+    var onRetry: (() -> Void)? = nil
+    var onOpenSettings: (() -> Void)? = nil
+    var onUseQr: (() -> Void)? = nil
 
     var body: some View {
         VStack {
@@ -360,6 +358,21 @@ private struct ObjectScanPanel: View {
                     .font(.body)
                 ProgressView(value: min(1, max(0, progress)))
                     .tint(.brandGreen)
+                if let onOpenSettings {
+                    Button("Open camera settings", action: onOpenSettings)
+                        .brandProminentButtonStyle()
+                        .tint(.brandSky)
+                }
+                if let onRetry {
+                    Button("Try camera again", action: onRetry)
+                        .brandGlassButtonStyle()
+                        .tint(.white)
+                }
+                if let onUseQr {
+                    Button("Use a QR spot instead", action: onUseQr)
+                        .brandGlassButtonStyle()
+                        .tint(.white)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(20)

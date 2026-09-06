@@ -5,7 +5,7 @@ import SwiftUI
 import UIKit
 import Vision
 
-enum ObjectCameraFailure: String, Equatable {
+enum ObjectCameraFailure: String, Equatable, Error {
     case permissionDenied = "permission_denied"
     case cameraUnavailable = "camera_unavailable"
     case visionUnavailable = "vision_unavailable"
@@ -13,7 +13,7 @@ enum ObjectCameraFailure: String, Equatable {
 
     var message: String {
         switch self {
-        case .permissionDenied: return "Allow camera access in iOS Settings, or use a QR spot instead."
+        case .permissionDenied: return "In Settings, open Apps → Super Alarm and allow Camera. You can also use a QR spot instead."
         case .cameraUnavailable: return "The camera is unavailable. You can use a QR spot instead."
         case .visionUnavailable: return "Object scanning is unavailable on this phone. Use a QR spot instead."
         case .recognitionFailed: return "Object recognition could not start. Try again or use a QR spot."
@@ -230,8 +230,14 @@ final class ObjectCameraViewController: UIViewController, AVCaptureVideoDataOutp
         guard !stopped, capturedAt - lastAnalyzedAt >= 0.1 else { return }
         lastAnalyzedAt = capturedAt
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-        guard let region = Self.normalizedRegion(guideRegion) else {
-            emit(ObjectFrameSample(fingerprint: nil, candidate: nil, issue: .blurry, capturedAt: capturedAt))
+        // Preview metadata coordinates are unrotated; video output buffers are rotated.
+        let pixelRect = output.outputRectConverted(fromMetadataOutputRect: guideRegion)
+        guard let region = ObjectCaptureQuality.normalizedRegion(
+            pixelRect: pixelRect,
+            width: CVPixelBufferGetWidth(pixelBuffer),
+            height: CVPixelBufferGetHeight(pixelBuffer)
+        ) else {
+            emitError(.visionUnavailable)
             return
         }
         if let issue = frameIssue(pixelBuffer, region: region) {
@@ -239,44 +245,48 @@ final class ObjectCameraViewController: UIViewController, AVCaptureVideoDataOutp
             return
         }
 
-        let request = VNGenerateImageFeaturePrintRequest()
-        request.revision = ObjectFeaturePrintCodec.revision
-        request.regionOfInterest = CGRect(
-            x: region.minX,
-            y: 1 - region.maxY,
-            width: region.width,
-            height: region.height
-        )
-        request.imageCropAndScaleOption = .centerCrop
         do {
-            try VNImageRequestHandler(
-                cvPixelBuffer: pixelBuffer,
-                orientation: .up,
-                options: [:]
-            ).perform([request])
-            guard let observation = request.results?.first else { return }
-            emit(sample(from: observation, capturedAt: capturedAt))
+            let observation = try featurePrint(pixelBuffer, region: region)
+            var legacyObservation: VNFeaturePrintObservation?
+            if references.contains(where: { $0.0.captureRegionVersion != 2 }),
+               let legacyRegion = Self.normalizedRegion(guideRegion) {
+                // Keep matching objects enrolled before the crop-coordinate correction.
+                legacyObservation = try featurePrint(pixelBuffer, region: legacyRegion)
+            }
+            emit(try sample(from: observation, legacyObservation: legacyObservation, capturedAt: capturedAt))
         } catch {
             emitError(.recognitionFailed)
         }
     }
 
+    private func featurePrint(_ pixelBuffer: CVPixelBuffer, region: CGRect) throws -> VNFeaturePrintObservation {
+        let request = VNGenerateImageFeaturePrintRequest()
+        request.revision = ObjectFeaturePrintCodec.revision
+        request.regionOfInterest = CGRect(x: region.minX, y: 1 - region.maxY, width: region.width, height: region.height)
+        request.imageCropAndScaleOption = .centerCrop
+        try VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .up, options: [:]).perform([request])
+        guard let observation = request.results?.first else { throw ObjectCameraFailure.recognitionFailed }
+        return observation
+    }
+
     private func sample(
         from observation: VNFeaturePrintObservation,
+        legacyObservation: VNFeaturePrintObservation?,
         capturedAt: TimeInterval
-    ) -> ObjectFrameSample {
+    ) throws -> ObjectFrameSample {
         switch mode {
         case .enrollment:
             return ObjectFrameSample(
-                fingerprint: try? ObjectFeaturePrintCodec.encode(observation),
+                fingerprint: try ObjectFeaturePrintCodec.encode(observation),
                 candidate: nil,
                 issue: nil,
                 capturedAt: capturedAt
             )
         case .recognition:
             let candidate = references.compactMap { target, prints -> ObjectMatchCandidate? in
+                guard let candidatePrint = target.captureRegionVersion == 2 ? observation : legacyObservation else { return nil }
                 guard let distance = prints.compactMap({
-                    ObjectFeaturePrintCodec.distance(observation, $0)
+                    ObjectFeaturePrintCodec.distance(candidatePrint, $0)
                 }).min() else { return nil }
                 return ObjectMatchCandidate(target: target, distance: distance)
             }.min { $0.distance < $1.distance }
@@ -310,37 +320,39 @@ final class ObjectCameraViewController: UIViewController, AVCaptureVideoDataOutp
             CVPixelBufferGetPlaneCount(pixelBuffer) > 0,
             let base = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 0)
         else {
-            return .blurry
+            return .lowDetail
         }
 
         let width = CVPixelBufferGetWidthOfPlane(pixelBuffer, 0)
         let height = CVPixelBufferGetHeightOfPlane(pixelBuffer, 0)
         let bytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 0)
         guard width > 0, height > 0, let region = Self.normalizedRegion(region) else {
-            return .blurry
+            return .lowDetail
         }
         let left = max(0, min(width - 1, Int(floor(region.minX * Double(width)))))
         let top = max(0, min(height - 1, Int(floor(region.minY * Double(height)))))
         let right = max(left + 1, min(width, Int(ceil(region.maxX * Double(width)))))
         let bottom = max(top + 1, min(height, Int(ceil(region.maxY * Double(height)))))
         let side = min(right - left, bottom - top)
-        guard side > 0 else { return .blurry }
+        guard side > 0 else { return .lowDetail }
         let step = max(2, side / 64)
-        let columnCount = (side + step - 1) / step
+        let columnCount = (right - left + step - 1) / step
         var previousRow = Array(repeating: -1, count: columnCount)
         let bytes = base.assumingMemoryBound(to: UInt8.self)
         var luminanceTotal = 0
         var edgeTotal = 0
         var edgeSamples = 0
         var samples = 0
+        var clippedSamples = 0
 
-        for y in stride(from: top, to: top + side, by: step) {
+        for y in stride(from: top, to: bottom, by: step) {
             var previous: Int?
             var column = 0
-            for x in stride(from: left, to: left + side, by: step) {
+            for x in stride(from: left, to: right, by: step) {
                 let luminance = Int(bytes[y * bytesPerRow + x])
                 luminanceTotal += luminance
                 samples += 1
+                if luminance >= 250 { clippedSamples += 1 }
                 if let previous {
                     edgeTotal += abs(luminance - previous)
                     edgeSamples += 1
@@ -357,10 +369,11 @@ final class ObjectCameraViewController: UIViewController, AVCaptureVideoDataOutp
 
         let averageLuminance = Double(luminanceTotal) / Double(samples)
         let averageEdge = edgeSamples == 0 ? 0 : Double(edgeTotal) / Double(edgeSamples)
-        if averageLuminance < 38 { return .tooDark }
-        if averageLuminance > 220 { return .tooBright }
-        if averageEdge < 2 { return .blurry }
-        return nil
+        return ObjectCaptureQuality.issue(
+            averageLuminance: averageLuminance,
+            averageEdge: averageEdge,
+            clippedFraction: Double(clippedSamples) / Double(samples)
+        )
     }
 
     private static func normalizedRegion(_ region: CGRect) -> CGRect? {

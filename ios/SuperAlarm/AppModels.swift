@@ -84,6 +84,7 @@ struct ObjectTarget: Codable, Identifiable, Equatable {
     var matchDistanceThreshold: Float
     var visionRevision: Int
     var createdAt: Date
+    var captureRegionVersion: Int? = nil
 }
 
 struct AlarmAttempt: Codable, Identifiable, Equatable {

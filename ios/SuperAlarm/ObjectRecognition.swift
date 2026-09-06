@@ -66,12 +66,6 @@ enum ObjectFeaturePrintCodec {
     }
 }
 
-enum ObjectFrameIssue: String {
-    case tooDark = "More light needed"
-    case tooBright = "Reduce glare or bright light"
-    case blurry = "Hold still for a sharper view"
-}
-
 struct ObjectMatchCandidate {
     let target: ObjectTarget
     let distance: Float
