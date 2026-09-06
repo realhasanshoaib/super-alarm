@@ -369,7 +369,7 @@ struct WeekdayPickerView: View {
     private let labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 64), spacing: 8)], spacing: 8) {
+        HStack(spacing: 4) {
             ForEach(labels.indices, id: \.self) { index in
                 Button {
                     onToggle(index)
@@ -378,10 +378,16 @@ struct WeekdayPickerView: View {
                         .font(.caption.weight(.semibold))
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
+                        .padding(.horizontal, 2)
                         .frame(maxWidth: .infinity, minHeight: 44)
+                        .background(
+                            (selected.indices.contains(index) && selected[index] ? Color.accentColor : Color.secondary).opacity(0.18),
+                            in: Capsule()
+                        )
+                        .contentShape(Capsule())
                 }
-                .buttonStyle(.bordered)
-                .tint(selected.indices.contains(index) && selected[index] ? .accentColor : .secondary)
+                .buttonStyle(.plain)
+                .foregroundStyle(selected.indices.contains(index) && selected[index] ? Color.accentColor : Color.secondary)
                 .accessibilityLabel(labels[index])
                 .accessibilityValue(selected.indices.contains(index) && selected[index] ? "Selected" : "Not selected")
             }

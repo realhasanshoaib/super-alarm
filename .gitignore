@@ -53,6 +53,7 @@ credentials/
 
 # local run output
 scratchpad/run-logs/
+scratchpad/screenshots/
 
 # typescript
 *.tsbuildinfo

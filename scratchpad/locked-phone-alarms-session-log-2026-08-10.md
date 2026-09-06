@@ -1,0 +1,4 @@
+- 2026-08-10 21:02 PKT: Started diagnosis for alarms failing while phones are locked. The thread rename helper failed because the app-server control socket is missing; complaint #4090 records the tool failure.
+- 2026-08-10 21:02 PKT: Began parallel read-only audits of the Android alarm path, current Android/OEM requirements, and the existing build/test history.
+- 2026-08-10 21:12 PKT: Confirmed the main failures: a blocked direct background activity launch, canceled backup rings, missing direct-boot and time-change recovery, no exact-permission grant recovery, and incomplete OEM power-management guidance. Started the focused implementation.
+- 2026-08-10 21:25 PKT: Finished the Android reliability patch. The first remote gate found one Kotlin parenthesis error; after that fix, `check assembleDebug bundleRelease assembleRelease --no-daemon` passed 116 tasks. Verified the release merged manifest and removed the isolated remote checkout and its build artifacts.

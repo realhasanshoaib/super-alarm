@@ -1,0 +1,5 @@
+# Super Alarm Play Store 1.4.0 session log
+
+- 2026-08-01 12:16:38 +0500: Loaded the Skillbox `mobile-submission` skill and its Google Play reference. `gplay auth doctor --output json` passed with the `q9labs-ai` profile. `gplay status --package com.superalarm.app` reported version 1.4.0, version code 11, completed on production, alpha, beta, and internal tracks. The status command also reported an unrelated vitals startup metrics 400.
+- 2026-08-01 12:16:38 +0500: Verified the public listing at `https://play.google.com/store/apps/details?id=com.superalarm.app&hl=en&gl=US` in Chrome. The listing is live, displays the 1.4.0 release notes, and shows `Updated on Jul 30, 2026`.
+- 2026-08-01 14:19:16 +0500: Rechecked Google Play authorization and state. The en-US listing exactly matches `docs/store-listing.md`; Play Console shows no unpublished changes, managed publishing off, and Last published on 1 August 2026. The public listing is live with the expected title, description, release notes, and `Updated on Jul 30, 2026`; no store mutation was needed.
