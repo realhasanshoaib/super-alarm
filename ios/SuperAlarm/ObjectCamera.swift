@@ -74,7 +74,7 @@ final class ObjectCameraViewController: UIViewController, AVCaptureVideoDataOutp
         self.mode = mode
         self.onFrame = onFrame
         self.onError = onError
-        previewLayer = AVCaptureVideoPreviewLayer(session: session)
+        previewLayer = AVCaptureVideoPreviewLayer()
         if case .recognition(let targets) = mode {
             references = targets.map { target in
                 (target, target.fingerprints.compactMap(ObjectFeaturePrintCodec.decode))
@@ -126,15 +126,23 @@ final class ObjectCameraViewController: UIViewController, AVCaptureVideoDataOutp
     }
 
     func stop() {
+        dispatchPrecondition(condition: .onQueue(.main))
         lifecycleLock.lock()
+        guard !_stopped else {
+            lifecycleLock.unlock()
+            return
+        }
         _stopped = true
         lifecycleLock.unlock()
+        previewLayer.removeFromSuperlayer()
         sessionQueue.async { [self] in
+            dispatchPrecondition(condition: .onQueue(sessionQueue))
+            dispatchPrecondition(condition: .notOnQueue(.main))
             videoOutput?.setSampleBufferDelegate(nil, queue: nil)
             if session.isRunning { session.stopRunning() }
-            DispatchQueue.main.async { [self] in
-                previewLayer.session = nil
-            }
+            // Detaching a preview rebuilds the capture graph and can wait for media services.
+            // Keep it alive until detached so Core Animation cannot do that work on main.
+            previewLayer.session = nil
         }
     }
 
@@ -160,6 +168,8 @@ final class ObjectCameraViewController: UIViewController, AVCaptureVideoDataOutp
     private func configure() {
         sessionQueue.async { [weak self] in
             guard let self, !self.stopped else { return }
+            dispatchPrecondition(condition: .notOnQueue(.main))
+            self.previewLayer.session = self.session
             self.session.beginConfiguration()
             self.session.sessionPreset = .vga640x480
             var ready = false

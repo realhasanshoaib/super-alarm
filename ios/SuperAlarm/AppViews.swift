@@ -941,7 +941,7 @@ struct QrScannerView: UIViewControllerRepresentable {
         _ uiViewController: AvFoundationScannerViewController,
         coordinator: Void
     ) {
-        uiViewController.stop()
+        uiViewController.dismantle()
     }
 }
 
@@ -949,10 +949,11 @@ final class AvFoundationScannerViewController: UIViewController, AVCaptureMetada
     private let session = AVCaptureSession()
     private let sessionQueue = DispatchQueue(label: "com.superalarm.qr-camera.session")
     private let onScan: (String) -> Void
-    private lazy var previewLayer = AVCaptureVideoPreviewLayer(session: session)
+    private let previewLayer = AVCaptureVideoPreviewLayer()
     private var didScan = false
     private var isConfigured = false
     private var shouldRun = false
+    private var isDismantled = false
 
     init(onScan: @escaping (String) -> Void) {
         self.onScan = onScan
@@ -996,6 +997,21 @@ final class AvFoundationScannerViewController: UIViewController, AVCaptureMetada
         }
     }
 
+    func dismantle() {
+        dispatchPrecondition(condition: .onQueue(.main))
+        previewLayer.removeFromSuperlayer()
+        sessionQueue.async { [self] in
+            dispatchPrecondition(condition: .onQueue(sessionQueue))
+            dispatchPrecondition(condition: .notOnQueue(.main))
+            guard !isDismantled else { return }
+            isDismantled = true
+            shouldRun = false
+            if session.isRunning { session.stopRunning() }
+            // Retain the controller until graph teardown is finished off the UI thread.
+            previewLayer.session = nil
+        }
+    }
+
     private func requestCamera() {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
@@ -1017,7 +1033,9 @@ final class AvFoundationScannerViewController: UIViewController, AVCaptureMetada
 
     private func configure() {
         sessionQueue.async { [weak self] in
-            guard let self, !self.isConfigured else { return }
+            guard let self, !self.isConfigured, !self.isDismantled else { return }
+            dispatchPrecondition(condition: .notOnQueue(.main))
+            self.previewLayer.session = self.session
             self.session.beginConfiguration()
             defer {
                 self.session.commitConfiguration()
@@ -1051,7 +1069,7 @@ final class AvFoundationScannerViewController: UIViewController, AVCaptureMetada
     }
 
     private func startIfReady() {
-        guard isConfigured, shouldRun, !session.isRunning else { return }
+        guard isConfigured, shouldRun, !isDismantled, !session.isRunning else { return }
         session.startRunning()
     }
 
