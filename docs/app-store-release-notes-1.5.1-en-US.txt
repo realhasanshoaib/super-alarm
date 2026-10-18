@@ -1,0 +1,1 @@
+Fixes a freeze when leaving the camera after scanning an object or QR code.
