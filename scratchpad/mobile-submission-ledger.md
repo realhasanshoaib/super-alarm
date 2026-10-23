@@ -58,3 +58,5 @@
 - Added a Health tab App version row that displays BuildConfig.VERSION_NAME and BuildConfig.VERSION_CODE, e.g. 1.0.0 (5), to make native/test-track verification visible in-app.
 - Rebuilt signed release APK and copied it to Hasan local Downloads as /Users/macmini/Downloads/super-alarm-native-v5-release.apk.
 - Updated APK SHA-256 after marker build: bb172424b0b424266e00f01167970f0c4326d059889879f1eb849edaed3f4f6b.
+
+2026-10-23: Super Alarm iOS 1.5.1 (14) resubmitted after the 4.5.4 rejection of build 13 (notifications now optional). Submission c4c82e53-9047-4453-b55e-0c9cea7b6736 is WAITING_FOR_REVIEW. Build id c4ca7076-8385-4df0-a04a-876e599d9549.
