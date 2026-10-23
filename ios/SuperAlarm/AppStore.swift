@@ -75,7 +75,9 @@ final class AppStore: ObservableObject {
     }
 
     var shouldShowReadinessCard: Bool {
-        !state.hasCompletedOnboarding || (state.alarm.isEnabled && (!state.liveAlarmScheduled || !activationReadiness.prerequisitesReady))
+        !state.hasCompletedOnboarding
+            || !activationReadiness.notificationsAuthorized
+            || (state.alarm.isEnabled && (!state.liveAlarmScheduled || !activationReadiness.prerequisitesReady))
     }
 
     func start() {
@@ -195,6 +197,25 @@ final class AppStore: ObservableObject {
             telemetry.capture(ProductEvent(.onboardingStepCompleted, onboardingStep: completedStep.rawValue, source: .onboarding))
             telemetry.capture(ProductEvent(.onboardingCompleted, source: .onboarding))
             haptics.success()
+        }
+    }
+
+    /// Notifications are optional: the user can finish setup without them, but the alarm stays off until they allow them.
+    func finishOnboardingWithoutNotifications() {
+        state.alarm.isEnabled = false
+        state.liveAlarmScheduled = false
+        state.hasCompletedOnboarding = true
+        state.hasDeferredOnboarding = false
+        state.onboardingStep = .ready
+        save()
+        telemetry.capture(ProductEvent(.onboardingCompleted, source: .onboarding))
+    }
+
+    func allowNotificationsFromHome() {
+        if health.authorizationStatus == .denied {
+            openAppSettings()
+        } else {
+            requestNotifications()
         }
     }
 
