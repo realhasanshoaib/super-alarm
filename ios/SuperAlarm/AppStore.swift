@@ -207,7 +207,7 @@ final class AppStore: ObservableObject {
         state.hasCompletedOnboarding = true
         state.hasDeferredOnboarding = false
         state.onboardingStep = .ready
-        save()
+        persistAndReschedule(source: .onboarding)
         telemetry.capture(ProductEvent(.onboardingCompleted, source: .onboarding))
     }
 
