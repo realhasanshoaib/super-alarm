@@ -246,8 +246,28 @@ private struct AlarmReadinessCard: View {
         return labels
     }
 
+    private var notificationsOnlyMissing: Bool {
+        store.state.hasCompletedOnboarding && !store.activationReadiness.notificationsAuthorized
+            && !store.state.alarm.isEnabled
+    }
+
     var body: some View {
         Section {
+            if notificationsOnlyMissing {
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("Notifications are off", systemImage: "bell.slash.fill")
+                        .font(.headline)
+                        .foregroundStyle(Color.brandOrange)
+                    Text("Your alarm rings through notifications, so it can't wake you until you allow them. You can allow them now or any time later.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Button(store.health.authorizationStatus == .denied ? "Open Settings" : "Allow notifications") {
+                        store.allowNotificationsFromHome()
+                    }
+                    .brandProminentButtonStyle()
+                }
+                .padding(.vertical, 6)
+            } else {
             VStack(alignment: .leading, spacing: 12) {
                 Label(
                     "Alarm not ready: \(missingLabels.count) \(missingLabels.count == 1 ? "step" : "steps") remaining",
@@ -272,6 +292,7 @@ private struct AlarmReadinessCard: View {
                 .brandProminentButtonStyle()
             }
             .padding(.vertical, 6)
+            }
         }
     }
 

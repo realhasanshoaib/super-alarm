@@ -331,6 +331,15 @@ private struct PhoneSetupOnboardingStep: View {
                 enabled: store.activationReadiness.prerequisitesReady && !store.isActivatingAlarm,
                 action: store.completeOnboarding
             )
+            if !store.activationReadiness.prerequisitesReady {
+                Text("Alarms ring through notifications, so without them your alarm stays off. You can finish setup now and allow notifications later in Settings.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Button("Not now") {
+                    store.finishOnboardingWithoutNotifications()
+                }
+                .frame(maxWidth: .infinity, minHeight: 44)
+            }
         }
         .task {
             await store.refreshHealth()
